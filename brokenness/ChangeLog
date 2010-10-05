@@ -1,0 +1,4 @@
+2010-03-09  Masatake YAMATO  <yamato@redhat.com>
+
+	* rpmdb-brokenness.sh (check_rebuilddb_on_copied): Added new function.
+
