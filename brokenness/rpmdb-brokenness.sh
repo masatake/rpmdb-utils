@@ -23,38 +23,253 @@
 # used in advertising or otherwise to promote the sale, use or other dealings
 # in this Software without prior written authorization from the author.
 #
+# Author: Masatake YAMATO <yamato@redhat.com>
+#
+DBPATH=${DBPATH:-/var/lib/rpm}
+EXPECTED_RPMS=${EXPECTED_RPMS:-300}
+DUMMY_RPM=
+DEBUG=${DEBUG:-no}
+REPORT_LEVEL=${REPORT_LEVEL:-line}
+IGNORE_ERROR=
+
+
+CHECKERS="
+          rpm_running
+          fcntl_lock_target_db000
+          fcntl_lock_target_transactions
+          region_file_1
+          region_file_2
+          region_file_3
+          rpm_qa_on_original
+          expected_rpms_on_original
+          install_on_copied
+          verify_installation_on_copied
+"
+
+
 function print_usage
 {
     echo "Usage: "
-    echo "$0 [--help|-h]"
-    echo "$0 [--debug] [--dbpath=DBPATH] [--expected-rpms=#] [--dummy-rpm=RPM]"
-
+    echo "	$0 [--help|-h]"
+    echo "	$0 [--debug] [--ignore-error] \\"
+    echo "	   [[--report-level=line|quiet|verbose]|--verbose|--quiet] \\"
+    echo "	   [--dbpath=DBPATH] [--expected-rpms=#] [--dummy-rpm=RPM]"
+    echo "	$0 [--debug] [--decode=...]"
+    echo ""
+    echo "Default value:"
+    echo "	DBPATH: $DPBATH"
+    echo "	EXPECTED_RPMS: $EXPECTED_RPMS"
+    echo "	REPORT_LEVEL: $REPORT_LEVEL"
+    echo ""
+    echo "Exit status:"
+    echo "	0: No brokenness detected in any checkers"
+    echo "	1: Error occurred in script execution"
+    echo "	2...N: Brokenness detected in the (N-2)th checker, zero indexed" 
+    echo ""
     exit $1
 }
 
-function report_status
+# 
+# Utilities
+#
+function verbose_p
 {
-    local status=$1
+    test $REPORT_LEVEL = verbose
+    return $?
+}
+
+function quiet_p
+{
+    test $REPORT_LEVEL = quiet
+    return $?
+}
+
+function line_p
+{
+    test $REPORT_LEVEL = line
+    return $?
+}
+
+function member_p
+{
+    local elt=$1
+    shift
+    for x in "$@"; do
+	if [ "$x" = "$elt" ]; then
+	    return 0
+	fi
+    done
+    
+    return 1
+}
+
+function index_of
+{
+    local found
+    local index=0
+    local elt=$1
+    shift
+
+    for x in "$@"; do
+	if [ "$x" = "$elt" ]; then
+	    echo $index
+	    return 0
+	fi
+	index=$(( $index + 1 ))
+    done
+    
+    return 1
+}
+
+function dprintf
+{
+    verbose_p && printf "$@"
+}
+
+#
+# Decode
+#
+function decode
+{
+    local result="$1"
+    local r
+    local c
+    local checkers="${CHECKERS}"
+    local status=0
 
 
-    if ! [ "$status" = 0 ]; then
-	echo "(abnormal exit)"
-	return 1
-    else
-	echo "(normal exit)"
-    fi
+    for c in $checkers; do
+	r=${result:0:1}
+	result=${result:1}
+
+	if [ -z "$c" ]; then
+	    {
+		echo "The argument for decode is too short: $result"
+		return 1
+	    } 2>&1
+	fi
+
+	if ! decode_1 $c $r; then
+	    status=1
+	fi
+    done
+    
+    return $status
+    
+}
+
+function decode_1
+{
+    local checker=$1
+    local result=$2
+    local status=0
+    local msg
+
+
+    case $result in
+	.)
+	    msg="sound"
+	    ;;
+	_)
+	    msg="not checked"
+	    ;;
+	e|c|s|t)
+	    msg="error"
+	    ;;
+	B)
+	    msg="broken"
+	    ;;
+	*)
+	    status=1
+	    msg="unknown"
+	    ;;
+	
+    esac
+
+    printf "%s...%s\n" "$checker" "$msg"
+
+    return $status
 }
 
 
+#
+# Check
+#
+# ----------------------------------------------------------------------
+# argument:
+# 1: DB
+# 2: TMPDIR
+# 3: DUMMY PKG or -
+# 4: EXPECTED_RPMS
+# 
+# ----------------------------------------------------------------------
+# return value:
+# 0: found no brokenness 
+# 1: error occurred
+# 2: found brokenness
+# 3: not checked
+#
+function check
+{
+    local func
+    local checker
+    local status
 
-DBPATH=/var/lib/rpm
+    checker=$1
+    shift
 
-# 300
-EXPECTED_RPMS=
 
-DUMMY_RPM=
-DEBUG=no
+    dprintf "* %s  %s\n" "$checker" "$*"
+    
+    func=${checker}__setup
+    dprintf "	Setup..."
+    if type $func > /dev/null 2>&1  &&  ! $func "$@"; then
+	eval ${c}__result=s
+	dprintf "error\n"
+	return 1
+    fi
+    dprintf "ok\n"
 
+    func=${checker}__check
+    dprintf "	Check..."
+    $func "$@"
+    status=$?
+    case $status in
+	0)
+	    eval ${c}__result=.
+	    dprintf "sound\n" 
+	    ;;
+	1)
+	    eval ${c}__result=c
+	    dprintf "error\n" 
+	    ;;
+	2)
+	    eval ${c}__result=B
+	    dprintf "broken\n" 
+	    ;;
+	3)
+	    eval ${c}__result=_
+	    dprintf "not checked\n"
+	    ;;
+    esac
+
+    
+    dprintf "	Teardown..."
+    func=${checker}__teardown
+    if type $func > /dev/null 2>&1  && ! $func "$@"; then
+	eval ${c}__result=t
+	dprintf "error\n"
+	return 1
+    fi
+    dprintf "ok\n"
+
+
+    return $status
+}
+
+#
+# Main
+# 
 function parse_arguments
 {
     while [ $# -gt 0 ]; do
@@ -69,22 +284,51 @@ function parse_arguments
 		    exit 1
 		fi
 		;;
-	    --expected-rpms=*)
-		EXPECTED_RPMS=${1/--expected-rpms=}
+	    --decode=*)
+	       local result=${1/--decode=}
+	       decode "$result"
+	       exit $?
+	       ;;
+	    --debug)
+		DEBUG=yes
+		REPORT_LEVEL=verbose
+		set -x
 		;;
 	    --dummy-rpm=*)
 		DUMMY_RPM=${1/--dummy-rpm=}
+		# TODO
 		if ! [ -f $DUMMY_RPM ]; then
 		    echo "No such file: $DUMMY_RPM" 1>&2
 		    exit 1
 		fi
 		;;
-	    --debug)
-		DEBUG=yes
+	    --expected-rpms=*)
+		EXPECTED_RPMS=${1/--expected-rpms=}
+		# TODO: Check value
 		;;
+	    --ignore-error)
+	       IGNORE_ERROR=yes
+	       ;;
+	    --queit)
+	       REPORT_LEVEL=quiet
+	       ;;
+            --report-level=*)
+	       REPORT_LEVEL=${1/--report-level=}
+	       if ! member_p $REPORT_LEVEL quiet line verbose; then
+		   {
+		       echo "No such report level: $REPORT_LEVEL"
+		       print_usage 1 
+		   } 1>&2
+	       fi
+	       ;;
+	    --verbose)
+	       REPORT_LEVEL=verbose
+	       ;;
 	    --*)
-		echo "No such option: $1" 1>&2 
-		print_usage 1 1>&2
+	       {
+		   echo "No such option: $1" 
+		   print_usage 1 
+	       } 1>&2
 		;;
 	    *)
 		break
@@ -94,276 +338,309 @@ function parse_arguments
     done
 
     if [ $# -gt 0 ]; then
-	print_usage 1 1>&2
+	{
+	    echo "Unexpected argument(s): $@"
+	    print_usage 1
+	} 1>&2
     fi
 }
 
-function check_qa_on_original
+function report_line
 {
-    local db=$1
-    local tmp=$2
-    local name=${3:-$FUNCNAME}
-    local status
+    local checker=$1
+    local result=$2
 
-    printf "running rpm -qa --dbpath $db..."
-    rpm -qa --dbpath $db > $tmp/stdout 2>$tmp/stderr
-    status=$?
-    printf "$status"
-
-    echo $status > $tmp/status
-    report_status $status
-
-    printf "the number of rpms..."
-    local lines=$(wc -l < $tmp/stdout)
-    printf $lines
-
-    if [ -n "$EXPECTED_RPMS" ]; then
-	if [ "$EXPECTED_RPMS" -gt "$lines" ]; then
-	    echo "(too few)"
-	    return 0
-	else
-	    echo "(enough)"
-	    return 0
-	fi
-    else
-	echo "(use as default)"
-	EXPECTED_RPMS=$lines
-	return 0
+    if ( [ "$result" = s ] \
+      || [ "$result" = c ] \
+      || [ "$result" = t ] ); then
+	result=e
     fi
-}
-
-function check_qa_on_copied
-{
-    check_qa_on_original $1 $2 $FUNCNAME
-    return $?
-}
-
-function check_qa_on_copied_other_than_db00X
-{
-    check_qa_on_original $1 $2 $FUNCNAME
-    return $?
-}
-
-function check_qa_on_copied_Packages_only
-{
-    check_qa_on_original $1 $2 $FUNCNAME
-    return $?
-}
-
-function check_fcntl_lock_target
-{
-    local db=$1
-    local lockfile
-
-    lockfile=$db/__db.000
-    printf "fcntl locking file..."
-    if [ -f $lockfile ]; then
-	echo $lockfile
-	return 0
-    fi
-	
-    lockfile="$(dirname $(dirname $db))/lock/rpm/transactions"
-    if [ -f $lockfile ]; then
-	echo $lockfile
-	return 0
-    fi
-
-    echo "unknown"
+    printf "%s" "$result"
     return 0
 }
 
-function check_region_files
+function report_verbose
 {
-    local db=$1
-    local rfile
+    decode_1 $1 $2
 
-    printf "region files..."
-    for rfile in $db/__db.00[1-3]; do
-	if [ -f $rfile ]; then
-	    printf " $(basename $rfile)"
-	else
-	    printf "no region file"
-	    break
-	fi
-    done
-    echo
-}
-
-function check_install_on_copied
-{
-    local db=$1
-    local tmp=$2
-    local pkg=$3
-    local name=$(rpm -qp --queryformat "%{name}\n" "$pkg")
-
-    printf "running rpm -ivh --justdb --dbpath $db $pkg..."
-    rpm -i --justdb --dbpath $db $pkg > $tmp/stdout-i 2>  $tmp/stderr-i
-    status=$?
-    printf "$status"
-    echo $status > $tmp/status
-    report_status $status
-
-    printf "checking rpm -qa --dbpath $db..."
-    if (rpm -qa --dbpath $db 2>/dev/null | grep "^$name") > /dev/null 2>&1; then
-	echo found \"$name\"
-    else
-	echo not found \"$name\"
-    fi
-    return 0
-}
-
-function check_install_on_copied_other_than_db00X
-{
-    check_install_on_copied $1 $2 $3 $4
     return $?
 }
-
-function check_install_on_copied_Packages_only
-{
-    check_install_on_copied $1 $2 $3 $4
-    return $?
-}
-
-function check_rebuilddb_on_copied
-{
-    local db=$1
-    local tmp=$2
-    local pkg=$3
-
-    printf "running rpm --rebuilddb --dbpath $db..."
-    rpm --rebuilddb --dbpath $db > $tmp/stdout-rebuilddb 2> $tmp/stderr-rebuilddb
-    status=$?
-    printf "$status"
-    echo $status > $tmp/status-rebuilddb
-    report_status $status
-
-    if ! [ $status = 0 ]; then
-	return $status
-    fi
-
-    if ! check_qa_on_original $db $tmp $FUNCNAME; then
-	return $?
-    fi
-
-    if [ -n "$pkg" ];then 
-	if ! check_install_on_copied $db $tmp $pkg; then
-	    return $?
-	fi
-    fi
-    return 0
-}
-
-function check_rebuilddb_on_copied_other_than_db00X
-{
-    check_rebuilddb_on_copied $1 $2 $3
-    return $?
-}
-
 
 function main
 {
-    local surgery=$(mktemp -d)
-    if [ "$DEBUG" != "yes" ]; then
-	trap "chmod -R u+w $surgery; /bin/rm -rf $surgery" 0    
-    fi
-    
-    local func
+    local surgery
+    local found_error=
+    local found_brokenness=
 
-    
     parse_arguments "$@"
 
-    func=fcntl_lock_target
-    if ! check_${func} $DBPATH; then
-	return $?
-    fi
+    surgery=$(mktemp -d "/tmp/rpmdb_brokenness.XXXXX")
 
-    func=region_files
-    if ! check_${func} $DBPATH; then
-	return $?
-    fi
-
-    func=qa_on_original
-    mkdir ${surgery}/$func
-    if ! check_$func $DBPATH ${surgery}/$func; then
-	return $?
-    fi
-
-    printf "conducting installation check..."
-    if [ -n "$DUMMY_RPM" ]; then
-	echo "with $DUMMY_RPM"
+    if [ "$DEBUG" != "yes" ]; then
+	trap "chmod -R u+w $surgery; /bin/rm -rf $surgery" 0    
     else
-	echo "disabled"
+	printf "surgery: %s\n" "$surgery"
     fi
 
-
-    func=qa_on_copied
-    mkdir -p ${surgery}/$func/db
-    cp -r $DBPATH/* ${surgery}/$func/db
-    if ! check_$func ${surgery}/$func/db ${surgery}/$func; then
-	return $?
-    fi
+    local checkers="$CHECKERS"
     
-    if [ -n "$DUMMY_RPM" ]; then
-	func=install_on_copied
-	mkdir -p ${surgery}/$func/db
-	cp -r $DBPATH/* ${surgery}/$func/db
-	if ! check_$func ${surgery}/$func/db ${surgery}/$func $DUMMY_RPM; then
-	    return $?
+    for c in $checkers; do
+	eval ${c}__result=_
+    done
+
+    for c in $checkers; do
+	check $c $DBPATH "$surgery" ${DUMMY_RPM:--} "${EXPECTED_RPMS}"
+	case $? in
+	    0)
+		:
+		;;
+	    1)
+		found_error=$c
+		;;
+	    2)
+		if [ -z "$found_brokenness" ]; then
+		    found_brokenness=$c
+		fi
+		;;
+	esac
+	
+	if [ -n "$found_error" ]; then
+	    if [ -z "$IGNORE_ERROR" ]; then
+		break
+	    fi
+
 	fi
+    done
+
+    case $REPORT_LEVEL in
+	quiet)
+	    :
+	    ;;
+	line)
+	    for c in $checkers; do
+		report_$REPORT_LEVEL $c $(eval 'echo $'${c}__result)
+	    done
+	    if [ -n "$found_error" ]; then
+		echo -n ": $found_error<error>"
+	    fi
+	    if [ -n "$found_brokenness" ]; then
+		echo -n ": $found_brokenness<broken>"
+	    fi
+	    echo
+	    ;;
+	verbose)
+	    for c in $checkers; do
+		report_$REPORT_LEVEL $c $(eval 'echo $'${c}__result)
+	    done
+	    ;;
+    esac
+
+    if [ -n "$found_error" ]; then
+	return 1
     fi
 
-    func=rebuilddb_on_copied
-    mkdir -p ${surgery}/$func/db
-    cp -r $DBPATH/* ${surgery}/$func/db
-    if ! check_$func ${surgery}/$func/db ${surgery}/$func $DUMMY_RPM; then
-	return $?
+    if [ -n "found_brokenness" ]; then
+	local index=$(index_of "$found_brokenness" $checkers)
+	return $(( $index + 2 ))
     fi
 
-    func=qa_on_copied_other_than_db00X
-    mkdir -p ${surgery}/$func/db
-    cp -r $DBPATH/* ${surgery}/$func/db
-    rm -f ${surgery}/$func/db/__db00*
-    if ! check_$func ${surgery}/$func/db ${surgery}/$func; then
-	return $?
-    fi
-    
-    if [ -n "$DUMMY_RPM" ]; then
-	func=install_on_copied_other_than_db00X
-	mkdir -p ${surgery}/$func/db
-	cp -r $DBPATH/* ${surgery}/$func/db
-	rm -f ${surgery}/$func/db/__db00*
-	if ! check_$func ${surgery}/$func/db ${surgery}/$func $DUMMY_RPM; then
-	    return $?
-	fi
-    fi
-
-    func=rebuilddb_on_copied_other_than_db00X
-    mkdir -p ${surgery}/$func/db
-    cp -r $DBPATH/* ${surgery}/$func/db
-    rm -f ${surgery}/$func/db/__db00*
-    if ! check_$func ${surgery}/$func/db ${surgery}/$func $DUMMY_RPM; then
-	return $?
-    fi
-    
-    func=qa_on_copied_Packages_only
-    mkdir -p ${surgery}/$func/db
-    cp -r $DBPATH/Packages ${surgery}/$func/db
-    if ! check_$func ${surgery}/$func/db ${surgery}/$func; then
-	return $?
-    fi
-
-    if [ -n "$DUMMY_RPM" ]; then
-	func=install_on_copied_Packages_only
-	mkdir -p ${surgery}/$func/db
-	cp -r $DBPATH/Packages ${surgery}/$func/db
-	if ! check_$func ${surgery}/$func/db ${surgery}/$func $DUMMY_RPM; then
-	    return $?
-	fi
-    fi
-
-    # DUMP LEVEL
+    return 0
 }
 
+
+#
+# Checkers
+#
+function __file_existence__check 
+{
+    local file=$1
+    if [ -e $file ]; then
+	return 2
+    fi
+    return 0
+}
+
+function rpm_running__check
+{
+    if pidof rpm > /dev/null 2>&1; then
+	return 1
+    fi
+    return 0
+}
+
+
+function fcntl_lock_target_db000__check
+{
+    local db=$1
+
+    __file_existence__check "$db/__db.000"
+    return $?
+}
+
+function fcntl_lock_target_transactions__check
+{
+    local db=$1
+
+    __file_existence__check "$(dirname $(dirname $db))/lock/rpm/transactions"
+    return $?
+    
+}
+
+function __region_file__check
+{
+    local db=$1
+    local n=$2
+    __file_existence__check "$db/__db.00$n"
+    return $?
+}
+
+function region_file_1__check
+{
+    __region_file__check $1 1
+    return $?
+}
+function region_file_2__check
+{
+    __region_file__check $1 2
+    return $?
+}
+function region_file_3__check
+{
+    __region_file__check $1 3
+    return $?
+}
+
+function __rpm_qa__check
+{
+    local db=$1
+    local tmp=$2
+    local dummy_pkg=$3
+    local expected_rpms=$4
+    local func=$5
+
+
+    if ! rpm -qa --dbpath $db > $tmp/${func}_stdout 2>$tmp/${func}_stderr; then
+	return 2
+    fi
+
+    return 0
+}
+
+function rpm_qa_on_original__check
+{
+    __rpm_qa__check "$@" qa_on_original
+    return $?
+}
+
+function __expected_rpms__check
+{
+    local db=$1
+    local tmp=$2
+    local dummy_pkg=$3
+    local expected_rpms=$4
+    local func=$5
+    local lines
+
+    if ! [ -r "$tmp/${func}_stdout" ]; then
+	return 1
+    fi
+    
+    lines=$(wc -l < "$tmp/${func}_stdout")
+    if [ "$lines" -gt $expected_rpms ]; then
+	return 0
+    else
+	return 2
+    fi
+
+}
+
+function expected_rpms_on_original__check
+{
+    __expected_rpms__check "$@" qa_on_original
+    return $?
+}
+
+
+function __install__setup
+{
+    local db=$1
+    local tmp=$2
+    local dummy_pkg=$3
+    local expected_rpms=$4
+    local func=$5    
+
+    
+    if [ "$dummy_pkg" = "-" ]; then
+	return 0
+    fi
+    
+    mkdir -p "$tmp/$func/db"
+    # TODO: Is "cp -r" suitable?
+    cp -r $db/* "$tmp/$func/db"
+    return $?
+}
+
+function __install__check
+{
+    local db=$1
+    local tmp=$2
+    local dummy_pkg=$3
+    local expected_rpms=$4
+    local func=$5    
+
+    if [ "$dummy_pkg" = "-" ]; then
+	return 3
+    fi
+
+    db="$tmp/$func/db"
+    if rpm -i --justdb --dbpath $db $dummy_pkg > $tmp/${func}/stdout 2> $tmp/${func}/stderr; then
+	return 0
+    else
+	return 2
+    fi
+}
+
+function __verify_installation__check
+{
+    local db=$1
+    local tmp=$2
+    local dummy_pkg=$3
+    local expected_rpms=$4
+    local func=$5    
+    local name=$(rpm -qp --queryformat "%{name}\n" "$dummy_pkg")
+
+
+    if [ "$dummy_pkg" = "-" ]; then
+	return 3
+    fi
+
+    db="$tmp/$func/db"
+    if (rpm -qa --dbpath $db 2>/dev/null | grep "^${name}") > /dev/null 2>&1; then
+	return 0
+    else
+	return 2
+    fi
+}
+
+function install_on_copied__setup
+{
+    __install__setup "$@" install_on_copied
+}
+
+function install_on_copied__check
+{
+    __install__check "$@" install_on_copied
+    return $?
+}
+
+function verify_installation_on_copied__check
+{
+    __verify_installation__check "$@" install_on_copied
+}
+
+#
+#
+#
 main "$@"
 
 
