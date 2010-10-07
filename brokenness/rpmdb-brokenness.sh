@@ -71,6 +71,12 @@ function print_usage
     for c in $CHECKERS; do
 	describe $c
     done
+    echo ""
+    echo "Output of line reporter:"
+    for c in . _ B e s c t; do
+	printf "	$c => %s\n" "$(decode_result $c)"
+    done
+    echo ""
     exit $1
 }
 
@@ -173,23 +179,30 @@ function decode
     
 }
 
-function decode_1
+function decode_result
 {
-    local checker=$1
-    local result=$2
-    local status=0
+    local result=$1
     local msg
-
+    local status=0
 
     case $result in
 	.)
-	    msg="sound"
+	    msg="good"
 	    ;;
 	_)
 	    msg="not checked"
 	    ;;
-	e|c|s|t)
+	e)
 	    msg="error"
+	    ;;
+	c)
+	    msg="error in checker function"
+	    ;;
+	s)
+	    msg="error in setup function"
+	    ;;
+	t)
+	    msg="error in teardown function"
 	    ;;
 	B)
 	    msg="broken"
@@ -200,6 +213,20 @@ function decode_1
 	    ;;
 	
     esac
+
+    echo $msg
+    return $status
+}
+
+function decode_1
+{
+    local checker=$1
+    local result=$2
+    local status=0
+    local msg
+
+    msg=$(decode_result $result)
+    status=$?
 
     printf "%s...%s\n" "$checker" "$msg"
 
@@ -234,15 +261,10 @@ function check
     shift
 
 
-    func=${checker}__desc
     dprintf "* %s  %s\n" "$checker" "$*"
     if verbose_p; then
 	echo -n "  "
-	if type $func > /dev/null 2>&1; then
-	    echo $(${checker}__desc)
-	else
-	    echo "NO DOCUMENT"
-	fi
+	echo $(eval echo \$${checker}__desc)
     fi
     
     func=${checker}__setup
@@ -261,7 +283,7 @@ function check
     case $status in
 	0)
 	    eval ${c}__result=.
-	    dprintf "sound\n" 
+	    dprintf "good\n" 
 	    ;;
 	1)
 	    eval ${c}__result=c
