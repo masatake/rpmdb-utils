@@ -360,7 +360,7 @@ function parse_arguments
 	    --ignore-error)
 	       IGNORE_ERROR=yes
 	       ;;
-	    --queit)
+	    --quiet)
 	       REPORT_LEVEL=quiet
 	       ;;
             --report-level=*)
