@@ -26,7 +26,7 @@
 # Author: Masatake YAMATO <yamato@redhat.com>
 #
 DBPATH=${DBPATH:-/var/lib/rpm}
-EXPECTED_RPMS=${EXPECTED_RPMS:-300}
+EXPECTED_RPMS=${EXPECTED_RPMS:-100}
 DUMMY_RPM=
 DEBUG=${DEBUG:-no}
 REPORT_LEVEL=${REPORT_LEVEL:-line}
@@ -53,7 +53,8 @@ function print_usage
     echo "	$0 [--help|-h]"
     echo "	$0 [--debug] [--ignore-error] \\"
     echo "	   [[--report-level=line|quiet|verbose]|--verbose|--quiet] \\"
-    echo "	   [--dbpath=DBPATH] [--expected-rpms=#] [--dummy-rpm=RPM]"
+    echo "	   [--dbpath=DBPATH] [--expected-rpms=#] [--dummy-rpm=RPM] \\"
+    echo "         [--dont-check=A,B..]"
     echo "	$0 [--debug] [--decode=...]"
     echo ""
     echo "Default value:"
@@ -66,6 +67,10 @@ function print_usage
     echo "	1: Error occurred in script execution"
     echo "	2...N: Brokenness detected in the (N-2)th checker, zero indexed" 
     echo ""
+    echo "Checkers:"
+    for c in $CHECKERS; do
+	describe $c
+    done
     exit $1
 }
 
@@ -124,6 +129,16 @@ function index_of
 function dprintf
 {
     verbose_p && printf "$@"
+}
+
+#
+# Describe
+#
+function describe
+{
+    local checker=$1
+
+    printf "	%s:\n		%s\n" ${checker} "$(eval echo \$${checker}__desc)"
 }
 
 #
@@ -219,7 +234,16 @@ function check
     shift
 
 
+    func=${checker}__desc
     dprintf "* %s  %s\n" "$checker" "$*"
+    if verbose_p; then
+	echo -n "  "
+	if type $func > /dev/null 2>&1; then
+	    echo $(${checker}__desc)
+	else
+	    echo "NO DOCUMENT"
+	fi
+    fi
     
     func=${checker}__setup
     dprintf "	Setup..."
@@ -272,6 +296,11 @@ function check
 # 
 function parse_arguments
 {
+    for c in $CHECKERS; do
+	local d="$(eval echo \$${c}__desc)"
+	test -z "$d" && eval ${c}__desc="\"NO DOCUMENT\""
+    done
+
     while [ $# -gt 0 ]; do
 	case "$1" in
 	    --help|-h)
@@ -451,6 +480,12 @@ function main
 #
 # Checkers
 #
+function __file_existence__desc
+{
+    local obj=$1
+    printf "Checking whether %s exists or not" $obj
+}
+
 function __file_existence__check 
 {
     local file=$1
@@ -460,6 +495,7 @@ function __file_existence__check
     return 0
 }
 
+rpm_running__desc="Checking whether another rpm process is running or not"
 function rpm_running__check
 {
     if pidof rpm > /dev/null 2>&1; then
@@ -468,7 +504,7 @@ function rpm_running__check
     return 0
 }
 
-
+fcntl_lock_target_db000__desc=$(__file_existence__desc __db.000)
 function fcntl_lock_target_db000__check
 {
     local db=$1
@@ -477,6 +513,7 @@ function fcntl_lock_target_db000__check
     return $?
 }
 
+fcntl_lock_target_transactions__desc=$(__file_existence__desc /var/lock/rpm/transactions)
 function fcntl_lock_target_transactions__check
 {
     local db=$1
@@ -494,16 +531,19 @@ function __region_file__check
     return $?
 }
 
+region_file_1__desc=$(__file_existence__desc __db.001)
 function region_file_1__check
 {
     __region_file__check $1 1
     return $?
 }
+region_file_2__desc=$(__file_existence__desc __db.002)
 function region_file_2__check
 {
     __region_file__check $1 2
     return $?
 }
+region_file_3__desc=$(__file_existence__desc __db.003)
 function region_file_3__check
 {
     __region_file__check $1 3
@@ -526,6 +566,7 @@ function __rpm_qa__check
     return 0
 }
 
+rpm_qa_on_original__desc="Checking exit status of 'rpm -qa' on the original rpmdb"
 function rpm_qa_on_original__check
 {
     __rpm_qa__check "$@" qa_on_original
@@ -554,6 +595,7 @@ function __expected_rpms__check
 
 }
 
+expected_rpms_on_original__desc="Checking the lines of output of 'rpm -qa' on the original rpmdb"
 function expected_rpms_on_original__check
 {
     __expected_rpms__check "$@" qa_on_original
@@ -607,11 +649,13 @@ function __verify_installation__check
     local dummy_pkg=$3
     local expected_rpms=$4
     local func=$5    
-    local name=$(rpm -qp --queryformat "%{name}\n" "$dummy_pkg")
+    local name
 
 
     if [ "$dummy_pkg" = "-" ]; then
 	return 3
+    else
+	name=$(rpm -qp --queryformat "%{name}\n" "$dummy_pkg")
     fi
 
     db="$tmp/$func/db"
@@ -622,6 +666,7 @@ function __verify_installation__check
     fi
 }
 
+install_on_copied__desc="Checking the exit status of 'rpm -i --justdb' on the copied rpmdb"
 function install_on_copied__setup
 {
     __install__setup "$@" install_on_copied
@@ -633,6 +678,7 @@ function install_on_copied__check
     return $?
 }
 
+verify_installation_on_copied__desc="Checking the dummy package is really installed to the copied rpmdb"
 function verify_installation_on_copied__check
 {
     __verify_installation__check "$@" install_on_copied
