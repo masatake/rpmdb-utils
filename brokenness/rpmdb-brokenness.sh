@@ -188,6 +188,7 @@ function decode_result
     case $result in
 	.)
 	    msg="good"
+	    # TODO This should be "no corruption found"
 	    ;;
 	_)
 	    msg="not checked"
