@@ -626,7 +626,7 @@ function expected_rpms_on_original__check
 }
 
 
-function __install__setup
+function __copy_db__setup
 {
     local db=$1
     local tmp=$2
@@ -691,7 +691,7 @@ function __verify_installation__check
 install_on_copied__desc="Checking the exit status of 'rpm -i --justdb' on the copied rpmdb"
 function install_on_copied__setup
 {
-    __install__setup "$@" install_on_copied
+    __copy_db__setup "$@" install_on_copied
 }
 
 function install_on_copied__check
