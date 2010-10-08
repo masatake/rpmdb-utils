@@ -54,7 +54,7 @@ function print_usage
     echo "	$0 [--debug] [--ignore-error] \\"
     echo "	   [[--report-level=line|quiet|verbose]|--verbose|--quiet] \\"
     echo "	   [--dbpath=DBPATH] [--expected-rpms=#] [--dummy-rpm=RPM] \\"
-    echo "         [--dont-check=A,B..]"
+    echo "	   [--dont-check=A,B..]"
     echo "	$0 [--debug] [--decode=...]"
     echo ""
     echo "Default value:"
@@ -63,9 +63,9 @@ function print_usage
     echo "	REPORT_LEVEL: $REPORT_LEVEL"
     echo ""
     echo "Exit status:"
-    echo "	0: No brokenness detected in any checkers"
+    echo "	0: No corruption detected in any checkers"
     echo "	1: Error occurred in script execution"
-    echo "	2...N: Brokenness detected in the (N-2)th checker, zero indexed" 
+    echo "	2...N: Corruption detected in the (N-2)th checker, zero indexed" 
     echo ""
     echo "Checkers:"
     for c in $CHECKERS; do
@@ -73,7 +73,7 @@ function print_usage
     done
     echo ""
     echo "Output of line reporter:"
-    for c in . _ B e s c t; do
+    for c in . _ X e s c t; do
 	printf "	$c => %s\n" "$(decode_result $c)"
     done
     echo ""
@@ -203,7 +203,7 @@ function decode_result
 
     case $result in
 	.)
-	    msg="good"
+	    msg="no corruption found"
 	    # TODO This should be "no corruption found"
 	    ;;
 	_)
@@ -221,8 +221,8 @@ function decode_result
 	t)
 	    msg="error in teardown function"
 	    ;;
-	B)
-	    msg="broken"
+	X)
+	    msg="corrupted"
 	    ;;
 	*)
 	    status=1
@@ -257,6 +257,11 @@ function decode_1
 # Check
 #
 # ----------------------------------------------------------------------
+# global variables:
+CHECKER=
+FAMILY=
+#
+# ----------------------------------------------------------------------
 # argument:
 # 1: DB
 # 2: TMPDIR
@@ -265,9 +270,9 @@ function decode_1
 # 
 # ----------------------------------------------------------------------
 # return value:
-# 0: found no brokenness 
+# 0: found no corruption 
 # 1: error occurred
-# 2: found brokenness
+# 2: found corruption
 # 3: not checked
 #
 function check
@@ -276,13 +281,22 @@ function check
     local checker
     local status
     local family
+    local tmpdir
 
 
     checker=$1
     shift
-
+    CHECKER="$checker"
 
     family=$(family_for $checker)
+    FAMILY="$family"
+
+
+    tmpdir=${2}
+    mkdir -p "${tmpdir}/${family}"
+    mkdir -p "${tmpdir}/${checker}"
+
+    
     dprintf "* %s/%s  %s\n" "$family" "$checker" "$*"
     if verbose_p; then
 	echo -n "  "
@@ -305,15 +319,15 @@ function check
     case $status in
 	0)
 	    eval ${c}__result=.
-	    dprintf "good\n" 
+	    dprintf "no corruption found\n" 
 	    ;;
 	1)
 	    eval ${c}__result=c
 	    dprintf "error\n" 
 	    ;;
 	2)
-	    eval ${c}__result=B
-	    dprintf "broken\n" 
+	    eval ${c}__result=X
+	    dprintf "corrupted\n" 
 	    ;;
 	3)
 	    eval ${c}__result=_
@@ -443,11 +457,11 @@ function main
 {
     local surgery
     local found_error=
-    local found_brokenness=
+    local found_corruption=
 
     parse_arguments "$@"
 
-    surgery=$(mktemp -d "/tmp/rpmdb_brokenness.XXXXX")
+    surgery=$(mktemp -d "/tmp/rpmdb_corruption.XXXXX")
 
     if [ "$DEBUG" != "yes" ]; then
 	trap "chmod -R u+w $surgery; /bin/rm -rf $surgery" 0    
@@ -462,15 +476,6 @@ function main
     done
 
     for c in $checkers; do
-	local family
-
-	family=$(family_for $c)
-	if [ -z "$family" ]; then
-	    family="$c"
-	fi
-	mkdir -p "${surgery}/${family}"
-	mkdir -p "${surgery}/${c}"
-
 	check $c $DBPATH "$surgery" ${DUMMY_RPM:--} "${EXPECTED_RPMS}"
 	case $? in
 	    0)
@@ -480,8 +485,8 @@ function main
 		found_error=$c
 		;;
 	    2)
-		if [ -z "$found_brokenness" ]; then
-		    found_brokenness=$c
+		if [ -z "$found_corruption" ]; then
+		    found_corruption=$c
 		fi
 		;;
 	esac
@@ -505,8 +510,8 @@ function main
 	    if [ -n "$found_error" ]; then
 		echo -n ": $found_error<error>"
 	    fi
-	    if [ -n "$found_brokenness" ]; then
-		echo -n ": $found_brokenness<broken>"
+	    if [ -n "$found_corruption" ]; then
+		echo -n ": $found_corruption<corruption>"
 	    fi
 	    echo
 	    ;;
@@ -521,8 +526,8 @@ function main
 	return 1
     fi
 
-    if [ -n "found_brokenness" ]; then
-	local index=$(index_of "$found_brokenness" $checkers)
+    if [ -n "found_corruption" ]; then
+	local index=$(index_of "$found_corruption" $checkers)
 	return $(( $index + 2 ))
     fi
 
@@ -623,9 +628,7 @@ rpm_qa_on_original__desc="Checking exit status of 'rpm -qa' on the original rpmd
 rpm_qa_on_original__family="qa_on_original"
 function rpm_qa_on_original__check
 {
-    local family=$(family_for $FUNCNAME check)
-
-    __rpm_qa__check "$@" ${family}
+    __rpm_qa__check "$@" "${FAMILY}"
     return $?
 }
 
@@ -655,10 +658,7 @@ expected_rpms_on_original__desc="Checking the lines of output of 'rpm -qa' on th
 expected_rpms_on_original__family="qa_on_original"
 function expected_rpms_on_original__check
 {
-    local family=$(family_for $FUNCNAME check)
-
-
-    __expected_rpms__check "$@" ${family}
+    __expected_rpms__check "$@" "${FAMILY}"
     return $?
 }
 
@@ -728,17 +728,13 @@ install_on_copied__desc="Checking the exit status of 'rpm -i --justdb' on the co
 install_on_copied__family="install_on_copied"
 function install_on_copied__setup
 {
-    local family=$(family_for $FUNCNAME setup)
-
-    __copy_db__setup "$@" $family
+    __copy_db__setup "$@" "${FAMILY}"
     return $?
 }
 
 function install_on_copied__check
 {
-    local family=$(family_for $FUNCNAME check)
-
-    __install__check "$@" $family
+    __install__check "$@" "${FAMILY}"
     return $?
 }
 
@@ -746,9 +742,7 @@ verify_installation_on_copied__desc="Checking the dummy package is really instal
 verify_installation_on_copied__family="install_on_copied"
 function verify_installation_on_copied__check
 {
-    local family=$(family_for $FUNCNAME check)
-    
-    __verify_installation__check "$@" "${family}"
+    __verify_installation__check "$@" "${FAMILY}"
     return $?
 }
 
