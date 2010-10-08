@@ -140,8 +140,15 @@ function dprintf
 function family_for
 {
     local checker=$1
+    local suffix=$2
 
-    echo "$(eval echo \$${checker}__family)"
+    if [ -n "$suffix" ]; then
+	checker=${checker/__"$suffix"}
+    fi
+
+    local family_ref="${checker}__family"
+
+    echo "${!family_ref}"
     return 0
 }
 
@@ -613,9 +620,12 @@ function __rpm_qa__check
 }
 
 rpm_qa_on_original__desc="Checking exit status of 'rpm -qa' on the original rpmdb"
+rpm_qa_on_original__family="qa_on_original"
 function rpm_qa_on_original__check
 {
-    __rpm_qa__check "$@" qa_on_original
+    local family=$(family_for $FUNCNAME check)
+
+    __rpm_qa__check "$@" ${family}
     return $?
 }
 
@@ -642,9 +652,13 @@ function __expected_rpms__check
 }
 
 expected_rpms_on_original__desc="Checking the lines of output of 'rpm -qa' on the original rpmdb"
+expected_rpms_on_original__family="qa_on_original"
 function expected_rpms_on_original__check
 {
-    __expected_rpms__check "$@" qa_on_original
+    local family=$(family_for $FUNCNAME check)
+
+
+    __expected_rpms__check "$@" ${family}
     return $?
 }
 
@@ -662,8 +676,7 @@ function __copy_db__setup
 	return 0
     fi
     
-    mkdir -p "$tmp/$func/db"
-    cp --archive $db/* "$tmp/$func/db"
+    mkdir -p "$tmp/$func/db" && cp --archive $db/* "$tmp/$func/db"
     return $?
 }
 
@@ -712,22 +725,30 @@ function __verify_installation__check
 }
 
 install_on_copied__desc="Checking the exit status of 'rpm -i --justdb' on the copied rpmdb"
+install_on_copied__family="install_on_copied"
 function install_on_copied__setup
 {
-    __copy_db__setup "$@" install_on_copied
+    local family=$(family_for $FUNCNAME setup)
+
+    __copy_db__setup "$@" $family
     return $?
 }
 
 function install_on_copied__check
 {
-    __install__check "$@" install_on_copied
+    local family=$(family_for $FUNCNAME check)
+
+    __install__check "$@" $family
     return $?
 }
 
 verify_installation_on_copied__desc="Checking the dummy package is really installed to the copied rpmdb"
+verify_installation_on_copied__family="install_on_copied"
 function verify_installation_on_copied__check
 {
-    __verify_installation__check "$@" install_on_copied
+    local family=$(family_for $FUNCNAME setup)
+    
+    __verify_installation__check "$@" "${family}"
     return $?
 }
 
