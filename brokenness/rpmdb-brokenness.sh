@@ -692,6 +692,7 @@ install_on_copied__desc="Checking the exit status of 'rpm -i --justdb' on the co
 function install_on_copied__setup
 {
     __copy_db__setup "$@" install_on_copied
+    return $?
 }
 
 function install_on_copied__check
@@ -704,6 +705,7 @@ verify_installation_on_copied__desc="Checking the dummy package is really instal
 function verify_installation_on_copied__check
 {
     __verify_installation__check "$@" install_on_copied
+    return $?
 }
 
 #
