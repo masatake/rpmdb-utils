@@ -137,14 +137,23 @@ function dprintf
     verbose_p && printf "$@"
 }
 
+function family_for
+{
+    local checker=$1
+
+    echo "$(eval echo \$${checker}__family)"
+    return 0
+}
+
 #
 # Describe
 #
 function describe
 {
     local checker=$1
-
-    printf "	%s:\n		%s\n" ${checker} "$(eval echo \$${checker}__desc)"
+    local family=$(family_for $checker)
+    
+    printf "	%s/%s:\n		%s\n" "${family}" "${checker}" "$(eval echo \$${checker}__desc)"
 }
 
 #
@@ -224,12 +233,14 @@ function decode_1
     local checker=$1
     local result=$2
     local status=0
+    local family
     local msg
 
+    family=$(family_for $checker)
     msg=$(decode_result $result)
     status=$?
 
-    printf "%s...%s\n" "$checker" "$msg"
+    printf "%s/%s...%s\n" "$family" "$checker" "$msg"
 
     return $status
 }
@@ -257,12 +268,15 @@ function check
     local func
     local checker
     local status
+    local family
+
 
     checker=$1
     shift
 
 
-    dprintf "* %s  %s\n" "$checker" "$*"
+    family=$(family_for $checker)
+    dprintf "* %s/%s  %s\n" "$family" "$checker" "$*"
     if verbose_p; then
 	echo -n "  "
 	echo $(eval echo \$${checker}__desc)
@@ -441,6 +455,15 @@ function main
     done
 
     for c in $checkers; do
+	local family
+
+	family=$(family_for $c)
+	if [ -z "$family" ]; then
+	    family="$c"
+	fi
+	mkdir -p "${surgery}/${family}"
+	mkdir -p "${surgery}/${c}"
+
 	check $c $DBPATH "$surgery" ${DUMMY_RPM:--} "${EXPECTED_RPMS}"
 	case $? in
 	    0)
