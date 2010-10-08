@@ -746,7 +746,7 @@ verify_installation_on_copied__desc="Checking the dummy package is really instal
 verify_installation_on_copied__family="install_on_copied"
 function verify_installation_on_copied__check
 {
-    local family=$(family_for $FUNCNAME setup)
+    local family=$(family_for $FUNCNAME check)
     
     __verify_installation__check "$@" "${family}"
     return $?
