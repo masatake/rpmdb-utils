@@ -640,8 +640,7 @@ function __install__setup
     fi
     
     mkdir -p "$tmp/$func/db"
-    # TODO: Is "cp -r" suitable?
-    cp -r $db/* "$tmp/$func/db"
+    cp --archive $db/* "$tmp/$func/db"
     return $?
 }
 
