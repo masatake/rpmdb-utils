@@ -326,8 +326,6 @@ function check
 	echo $(eval echo \$${checker}__desc)
     fi
 
-    # TODO: This should be part of each setup functions.
-    mkdir -p "${tmpdir}/${checker}"
     [ -n "${workspace}" ] && mkdir -p "${tmpdir}/${workspace}"
 
     func=${checker}__setup
@@ -412,6 +410,7 @@ function parse_arguments
 	        decode "$result"
 	        exit $?
 	        ;;
+
             --debug)
 	        if [ -z "$tmpdir" ]; then
 		    {
@@ -421,7 +420,6 @@ function parse_arguments
 		    exit 1
 		fi
 	        ;;
-		
 	    --debug=*)
 	        local tmpdir
 		
@@ -682,7 +680,7 @@ function __install__check
 	return 3
     fi
 
-    if rpm -i --justdb --dbpath $db $dummy_pkg > $tmpdir/${workspace}/rpm_i_justdb 2>&1; then
+    if rpm -ivh --justdb --dbpath $db $dummy_pkg > $tmpdir/${workspace}/rpm_i_justdb 2>&1; then
 	return 0
     else
 	return 2
@@ -703,8 +701,7 @@ function __verify_installation__check
 	name=$(rpm -qp --queryformat "%{name}\n" "$dummy_pkg")
     fi
 
-    db="$tmpdir/$workspace/db"
-    if (rpm -qa --dbpath $db 2>/dev/null | grep "^${name}") > /dev/null 2>&1; then
+    if (rpm -qa --dbpath $db 2>/dev/null | tee $tmpdir/${workspace}/rpm_qa_stdout | grep "^${name}") > /dev/null 2>&1; then
 	return 0
     else
 	return 2
@@ -799,7 +796,7 @@ function install_on_copied__setup
     local dummy_pkg=$4
 
 
-    __copy_db__setup $2 "${tmpdir}"/$(workspace_for "$workspace")/db ${dummy_pkg}
+    __copy_db__setup $2 "${tmpdir}"/$workspace/db ${dummy_pkg}
 
     return $?
 }
@@ -810,7 +807,7 @@ function install_on_copied__check
     local tmpdir=$3
     local dummy_pkg=$4
 
-    __install__check $workspace "${tmpdir}"/$(workspace_for "$workspace")/db  "${tmpdir}" $dummy_pkg
+    __install__check $workspace "${tmpdir}"/$workspace/db  "${tmpdir}" $dummy_pkg
     return $?
 }
 
@@ -830,5 +827,3 @@ function verify_installation_on_copied__check
 #
 #-----------------------------------------------------------------------
 main "$@"
-
-
