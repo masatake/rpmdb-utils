@@ -320,11 +320,8 @@ function check
     workspace=$(workspace_for $checker)
 
 
-    dprintf "* %s%s  %s\n" "$checker" "$workspace" "$*"
-    if verbose_p; then
-	echo -n "  "
-	echo $(eval echo \$${checker}__desc)
-    fi
+    dprintf "* %s %s\n" "$workspace" "$*"
+    dprintf "  %s\n" "$(eval echo \$${checker}__desc)"
 
     [ -n "${workspace}" ] && mkdir -p "${tmpdir}/${workspace}"
 
