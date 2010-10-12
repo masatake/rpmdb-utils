@@ -47,6 +47,11 @@ CHECKERS="
           expected_the_number_of_rpms_on_original
           install_on_copied
           verify_installation_on_copied
+          rebuilddb_on_copied
+          rpm_qa_on_rebuilt
+          expected_the_number_of_rpms_on_rebuilt
+          install_on_rebuilt
+          verify_installation_on_rebuilt
 "
 
 
@@ -277,7 +282,7 @@ function decode_1
     msg=$(decode_result $result)
     status=$?
 
-    printf "%s%s...%s\n" "$checker" "$workspace" "$msg"
+    printf "%s%s...%s\n" "$checker" "${workspace}" "$msg"
 
     return $status
 }
@@ -320,7 +325,7 @@ function check
     workspace=$(workspace_for $checker)
 
 
-    dprintf "* %s %s\n" "$workspace" "$*"
+    dprintf "* %s %s\n" "${workspace}" "$*"
     dprintf "  %s\n" "$(eval echo \$${checker}__desc)"
 
     [ -n "${workspace}" ] && mkdir -p "${tmpdir}/${workspace}"
@@ -684,6 +689,10 @@ function __rpm_qa__check
     local tmpdir=$3
 
 
+    if ! [ -d $db ]; then
+	return 1
+    fi
+
     if ! rpm -qa --dbpath $db > $tmpdir/${workspace}/rpm_qa_stdout 2>$tmpdir/${workspace}/rpm_qa_stderr; then
 	return 2
     fi
@@ -759,7 +768,27 @@ function __verify_installation__check
 	name=$(rpm -qp --queryformat "%{name}\n" "$dummy_pkg")
     fi
 
+    if ! [  -d $db ];then
+	# programming error
+	return 1
+    fi
+
     if (rpm -qa --dbpath $db 2>/dev/null | tee $tmpdir/${workspace}/rpm_qa_stdout | grep "^${name}") > /dev/null 2>&1; then
+	return 0
+    else
+	return 2
+    fi
+}
+
+function __rebuilddb__check
+{
+    local workspace=$1
+    local db=$2
+    local tmpdir=$3
+    
+    if rpm --rebuilddb --dbpath $db \
+	> "${tmpdir}"/${workspace}/rpm_rebuildb_stdout      \
+	2> "${tmpdir}"/${workspace}/rpm_rebuildb_stderr; then
 	return 0
     else
 	return 2
@@ -854,7 +883,7 @@ function install_on_copied__setup
     local dummy_pkg=$4
 
 
-    __copy_db__setup $2 "${tmpdir}"/$workspace/db ${dummy_pkg}
+    __copy_db__setup $2 "${tmpdir}"/${workspace}/db ${dummy_pkg}
 
     return $?
 }
@@ -865,7 +894,7 @@ function install_on_copied__check
     local tmpdir=$3
     local dummy_pkg=$4
 
-    __install__check $workspace "${tmpdir}"/$workspace/db  "${tmpdir}" $dummy_pkg
+    __install__check "${workspace}" "${tmpdir}"/${workspace}/db  "${tmpdir}" $dummy_pkg
     return $?
 }
 
@@ -875,12 +904,81 @@ function verify_installation_on_copied__check
 {
     local workspace=$(workspace_for "$1")
     local tmpdir=$3
-    local db="$tmpdir/$workspace/db"
+    local db="$tmpdir/${workspace}/db"
     local dummy_pkg=$4
 
-    __verify_installation__check "$workspace" "$db" "$dummy_pkg"
+    __verify_installation__check "${workspace}" "$db" "$dummy_pkg"
     return $?
 }
+
+rebuilddb_on_copied__desc="Checking exit status of 'rpm --rebuilddb' on the copied rpmdb"
+rebuilddb_on_copied__workspace="@rebuilddb_on_copied"
+function rebuilddb_on_copied__setup
+{
+    local workspace=$(workspace_for "$1")
+    local tmpdir=$3
+
+    __copy_db__setup $2 "${tmpdir}"/${workspace}/db X
+
+    return $?
+}
+
+function rebuilddb_on_copied__check
+{
+    local workspace=$(workspace_for "$1")
+    local tmpdir=$3
+
+    __rebuilddb__check "${workspace}" "${tmpdir}"/${workspace}/db "${tmpdir}"
+
+    return $?
+}
+
+rpm_qa_on_rebuilt__desc="Checking exit status of 'rpm -qa' on the rebuilt rpmdb"
+rpm_qa_on_rebuilt__workspace="@rebuilddb_on_copied"
+function rpm_qa_on_rebuilt__check
+{
+    local workspace=$(workspace_for "$1")
+    local tmpdir=$3
+
+    __rpm_qa__check "${workspace}" "${tmpdir}"/${workspace}/db "${tmpdir}"
+    return $?
+}
+
+expected_the_number_of_rpms_on_rebuilt__desc="Checking the lines of output of 'rpm -qa' on the rebuilt rpmdb"
+expected_the_number_of_rpms_on_rebuilt__workspace="@rebuilddb_on_copied"
+function expected_the_number_of_rpms_on_rebuilt__check
+{
+    __expected_the_number_of_rpms__check $(workspace_for "$1") $3 $5
+    return $?
+}
+
+
+install_on_rebuilt__desc="Checking the exit status of 'rpm -i --justdb' on the rebuilt rpmdb"
+install_on_rebuilt__workspace="@rebuilddb_on_copied"
+function install_on_rebuilt__check
+{
+    local workspace=$(workspace_for "$1")
+    local tmpdir=$3
+    local dummy_pkg=$4
+
+    __install__check "${workspace}" "${tmpdir}"/${workspace}/db  "${tmpdir}" $dummy_pkg
+    return $?
+}
+
+verify_installation_on_rebuilt__desc="Checking the dummy package is really installed to the rebuilt rpmdb"
+verify_installation_on_rebuilt__workspace="@rebuilddb_on_copied"
+function verify_installation_on_rebuilt__check
+{
+    local workspace=$(workspace_for "$1")
+    local tmpdir=$3
+    local db="$tmpdir/${workspace}/db"
+    local dummy_pkg=$4
+
+    __verify_installation__check "${workspace}" "$db" "$dummy_pkg"
+    return $?
+}
+
+
 
 #
 #-----------------------------------------------------------------------
