@@ -52,6 +52,20 @@ CHECKERS="
           expected_the_number_of_rpms_on_rebuilt
           install_on_rebuilt
           verify_installation_on_rebuilt
+          rpm_qa_on_copied_other_than_db00X
+          expected_the_number_of_rpms_on_copied_other_than_db00X
+          install_on_copied_other_than_db00X
+          verify_installation_on_copied_other_than_db00X
+          rebuilddb_on_copied_other_than_db00X
+          rpm_qa_on_rebuilt_the_copied_from_the_original_than_db00X
+          expected_the_number_of_rpms_on_rebuilt_the_copied_from_the_original_than_db00X
+          install_on_rebuilt_the_copied_from_the_original_than_db00X
+          verify_installation_on_rebuilt_the_copied_from_the_original_than_db00X
+          packages
+          rpm_qa_on_copied_only_Packages
+          expected_the_number_of_rpms_on_copied_only_Packages
+          install_on_copied_only_Packages
+          verify_installation_on_copied_only_Packages
 "
 
 
@@ -195,6 +209,17 @@ function describe
     local workspace=$(workspace_for $checker)
     
     printf "	%s%s:\n		%s\n" "${checker}" "${workspace}" "$(eval echo \$${checker}__desc)"
+}
+
+function falias
+{
+    local name=$1
+    local value=$2
+
+    eval "function $name {
+             $value \"\$@\"
+             return \$?
+    }"
 }
 
 #
@@ -883,7 +908,7 @@ function install_on_copied__setup
     local dummy_pkg=$4
 
 
-    __copy_db__setup $2 "${tmpdir}"/${workspace}/db ${dummy_pkg}
+    __copy_db__setup $2 "${tmpdir}/${workspace}/db" ${dummy_pkg}
 
     return $?
 }
@@ -918,7 +943,7 @@ function rebuilddb_on_copied__setup
     local workspace=$(workspace_for "$1")
     local tmpdir=$3
 
-    __copy_db__setup $2 "${tmpdir}"/${workspace}/db X
+    __copy_db__setup $2 "${tmpdir}/${workspace}/db" X
 
     return $?
 }
@@ -940,45 +965,115 @@ function rpm_qa_on_rebuilt__check
     local workspace=$(workspace_for "$1")
     local tmpdir=$3
 
-    __rpm_qa__check "${workspace}" "${tmpdir}"/${workspace}/db "${tmpdir}"
+
+    __rpm_qa__check "${workspace}" "${tmpdir}/${workspace}/db" "${tmpdir}"
     return $?
 }
 
 expected_the_number_of_rpms_on_rebuilt__desc="Checking the lines of output of 'rpm -qa' on the rebuilt rpmdb"
 expected_the_number_of_rpms_on_rebuilt__workspace="@rebuilddb_on_copied"
-function expected_the_number_of_rpms_on_rebuilt__check
-{
-    __expected_the_number_of_rpms__check $(workspace_for "$1") $3 $5
-    return $?
-}
-
+falias expected_the_number_of_rpms_on_rebuilt__check expected_the_number_of_rpms_on_original__check
 
 install_on_rebuilt__desc="Checking the exit status of 'rpm -i --justdb' on the rebuilt rpmdb"
 install_on_rebuilt__workspace="@rebuilddb_on_copied"
-function install_on_rebuilt__check
-{
-    local workspace=$(workspace_for "$1")
-    local tmpdir=$3
-    local dummy_pkg=$4
-
-    __install__check "${workspace}" "${tmpdir}"/${workspace}/db  "${tmpdir}" $dummy_pkg
-    return $?
-}
+falias install_on_rebuilt__check install_on_copied__check
 
 verify_installation_on_rebuilt__desc="Checking the dummy package is really installed to the rebuilt rpmdb"
 verify_installation_on_rebuilt__workspace="@rebuilddb_on_copied"
-function verify_installation_on_rebuilt__check
+falias verify_installation_on_rebuilt__check verify_installation_on_copied__check
+
+
+rpm_qa_on_copied_other_than_db00X__desc="Checking exit status of 'rpm -qa' on the rpmdb copied from the original other than __db00X files"
+rpm_qa_on_copied_other_than_db00X__workspace="@qa_on_copied_other_than_db00X"
+function rpm_qa_on_copied_other_than_db00X__setup
 {
     local workspace=$(workspace_for "$1")
     local tmpdir=$3
-    local db="$tmpdir/${workspace}/db"
-    local dummy_pkg=$4
-
-    __verify_installation__check "${workspace}" "$db" "$dummy_pkg"
+    
+    if __copy_db__setup $2 "${tmpdir}"/${workspace}/db X; then
+	rm -f "${tmpdir}"/${workspace}/db/__db00*
+	return 0
+    fi
     return $?
 }
+falias rpm_qa_on_copied_other_than_db00X__check rpm_qa_on_rebuilt__check
 
 
+expected_the_number_of_rpms_on_copied_other_than_db00X__desc="Checking the lines of output of 'rpm -qa' on the rpmdb copied from the original other than __db00X files"
+expected_the_number_of_rpms_on_copied_other_than_db00X__workspace="@qa_on_copied_other_than_db00X"
+falias expected_the_number_of_rpms_on_copied_other_than_db00X__check expected_the_number_of_rpms_on_original__check
+
+install_on_copied_other_than_db00X__desc="Checking the exit status of 'rpm -i --justdb' on the on the rpmdb copied from the original other than __db00X files"
+install_on_copied_other_than_db00X__workspace="@qa_on_copied_other_than_db00X"
+falias install_on_copied_other_than_db00X__check install_on_copied__check
+
+verify_installation_on_copied_other_than_db00X__desc="Checking the dummy package is really installed to the rpmdb copied from the original other than __db00X files"
+verify_installation_on_copied_other_than_db00X__workspace="@qa_on_copied_other_than_db00X"
+falias verify_installation_on_copied_other_than_db00X__check verify_installation_on_copied__check
+
+
+
+
+rebuilddb_on_copied_other_than_db00X__desc="Checking exit status of 'rpm --rebuilddb' on the rpmdb copied from the original than __db00X files"
+rebuilddb_on_copied_other_than_db00X__workspace="@rebuilddb_on_copied_other_than_db00X"
+falias rebuilddb_on_copied_other_than_db00X__setup rpm_qa_on_copied_other_than_db00X__setup
+falias rebuilddb_on_copied_other_than_db00X__check rebuilddb_on_copied__check
+
+rpm_qa_on_rebuilt_the_copied_from_the_original_than_db00X__desc="Checking exit status of 'rpm -qa' on the rebuilt rpmdb"
+rpm_qa_on_rebuilt_the_copied_from_the_original_than_db00X__workspace="@rebuilddb_on_copied_other_than_db00X"
+falias rpm_qa_on_rebuilt_the_copied_from_the_original_than_db00X__check rpm_qa_on_rebuilt__check
+
+expected_the_number_of_rpms_on_rebuilt_the_copied_from_the_original_than_db00X__desc="Checking the lines of output of 'rpm -qa' on the rpmdb rebuilt from copied from the original than __db00X files"
+expected_the_number_of_rpms_on_rebuilt_the_copied_from_the_original_than_db00X__workspace="@rebuilddb_on_copied_other_than_db00X"
+falias expected_the_number_of_rpms_on_rebuilt_the_copied_from_the_original_than_db00X__check expected_the_number_of_rpms_on_original__check
+
+install_on_rebuilt_the_copied_from_the_original_than_db00X__desc="Checking the exit status of 'rpm -i --justdb' on the rpmdb rebuilt from copied from the original than __db00X files"
+install_on_rebuilt_the_copied_from_the_original_than_db00X__workspace="@rebuilddb_on_copied_other_than_db00X"
+falias install_on_rebuilt_the_copied_from_the_original_than_db00X__check install_on_copied__check
+
+verify_installation_on_rebuilt_the_copied_from_the_original_than_db00X__desc="Checking the dummy package is really installed to the rpmdb rebuilt from the original than __db00X files"
+verify_installation_on_rebuilt_the_copied_from_the_original_than_db00X__workspace="@rebuilddb_on_copied_other_than_db00X"
+falias verify_installation_on_rebuilt_the_copied_from_the_original_than_db00X__check verify_installation_on_copied__check
+
+
+
+packages__desc=$(__file_existence__desc Packages)
+function packages__check
+{
+    local db=$2
+
+    if [ -e $db/Packages ]; then
+	return 0
+    else
+	return 2
+    fi
+}
+
+rpm_qa_on_copied_only_Packages__desc="Checking exit status of 'rpm -qa' on the rpmdb derived from the original Packages file"
+rpm_qa_on_copied_only_Packages__workspace="@qa_on_rpmdb_derived_from_Packages"
+function rpm_qa_on_copied_only_Packages__setup
+{
+    local workspace=$(workspace_for "$1")
+    local db=$2
+    local tmpdir=$3
+    
+    mkdir -p "${tmpdir}/${workspace}/db" && cp --archive $db/Packages "${tmpdir}/${workspace}/db"
+    return $?
+}
+falias rpm_qa_on_copied_only_Packages__check rpm_qa_on_rebuilt__check
+
+
+expected_the_number_of_rpms_on_copied_only_Packages__desc="Checking the lines of output of 'rpm -qa' on the rpmdb derived from the original Packages file"
+expected_the_number_of_rpms_on_copied_only_Packages__workspace="@qa_on_rpmdb_derived_from_Packages"
+falias expected_the_number_of_rpms_on_copied_only_Packages__check expected_the_number_of_rpms_on_original__check
+
+install_on_copied_only_Packages__desc="Checking the exit status of 'rpm -i --justdb' on the on the rpmdb derived from the original Packages file"
+install_on_copied_only_Packages__workspace="@qa_on_rpmdb_derived_from_Packages"
+falias install_on_copied_only_Packages__check install_on_copied__check
+
+verify_installation_on_copied_only_Packages__desc="Checking the dummy package is really installed to the rpmdb derived from the original Packages file"
+verify_installation_on_copied_only_Packages__workspace="@qa_on_rpmdb_derived_from_Packages"
+falias verify_installation_on_copied_only_Packages__check verify_installation_on_copied__check
 
 #
 #-----------------------------------------------------------------------
