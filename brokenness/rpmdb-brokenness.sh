@@ -28,7 +28,7 @@
 #
 
 DBPATH=${DBPATH:-/var/lib/rpm}
-EXPECTED_RPMS=${EXPECTED_RPMS:-100}
+EXPECTED_THE_NUMBER_OF_RPMS=${EXPECTED_THE_NUMBER_OF_RPMS:-100}
 DUMMY_RPM=
 DEBUG=
 REPORT_LEVEL=${REPORT_LEVEL:-line}
@@ -44,7 +44,7 @@ CHECKERS="
           region_file_2
           region_file_3
           rpm_qa_on_original
-          expected_rpms_on_original
+          expected_the_number_of_rpms_on_original
           install_on_copied
           verify_installation_on_copied
 "
@@ -62,13 +62,13 @@ function print_usage
     echo "	$0 [--help|-h]"
     echo "	$0 [--debug=TMPDIR] [--ignore-error] \\"
     echo "	   [[--report-level=line|quiet|verbose]|--verbose|--quiet] \\"
-    echo "	   [--dbpath=DBPATH] [--expected-rpms=#] [--dummy-rpm=RPM] \\"
+    echo "	   [--dbpath=DBPATH] [-N=#|--expected-the-number-of-rpms=#] [--dummy-rpm=RPM] \\"
     echo "	   [--dont-check=A,B..]"
     echo "	$0 [--decode=...]"
     echo ""
     echo "Default value:"
     echo "	DBPATH: $DPBATH"
-    echo "	EXPECTED_RPMS: $EXPECTED_RPMS"
+    echo "	EXPECTED_THE_NUMBER_OF_RPMS: $EXPECTED_THE_NUMBER_OF_RPMS"
     echo "	REPORT_LEVEL: $REPORT_LEVEL"
     echo ""
     echo "Exit status:"
@@ -214,7 +214,7 @@ function decode
 	    {
 		echo "The argument for decode is too short: $result"
 		return 1
-	    } 2>&1
+	    } 1>&2
 	fi
 
 	if ! decode_1 $c $r; then
@@ -293,7 +293,7 @@ function decode_1
 # 2: DB
 # 3: TMPDIR
 # 4: DUMMY PKG or -
-# 5: EXPECTED_RPMS
+# 5: EXPECTED_THE_NUMBER_OF_RPMS
 # 
 # ----------------------------------------------------------------------
 # return value:
@@ -378,11 +378,6 @@ function check
 # 
 #
 
-#
-# TODO
-# long optoin sans ``=''
-# --expected-rpms -> --expected-number-of-rpms
-#
 function parse_arguments
 {
     for c in $CHECKERS; do
@@ -395,32 +390,52 @@ function parse_arguments
 	    --help|-h)
 		print_usage 0 1>&2
 		;;
-	    --dbpath=*)
-		DBPATH=${1/--dbpath=}
+	    --dbpath=*|--dbpath)
+                if [ $1 = "--dbpath" ]; then
+		    shift
+		    DBPATH=$1
+		else
+		    DBPATH=${1/--dbpath=}
+		fi
+
+		if [ -z "$DBPATH" ]; then
+		    echo "No dbpath given to --dbpath" 1>&2
+		    exit 1
+		fi
+
 		if ! [ -d "$DBPATH" ]; then
 		    echo "No such directory: $DBPATH" 1>&2
 		    exit 1
 		fi
 		;;
-	    --decode=*)
-	        local result=${1/--decode=}
-	        decode "$result"
+	    --decode=*|--decode)
+	        local decode_p
+                if [ "$1" = "--decode" ]; then
+		    shift
+		    decode_p=$1
+		else
+		    decode_p=${1/--decode=}
+		fi
+	        
+		if [ -z "$decode_p" ]; then
+		    echo "No decode string given to --decode" 1>&2
+		    exit 1
+		fi
+		
+	        decode "$decode_p"
 	        exit $?
 	        ;;
 
-            --debug)
-	        if [ -z "$tmpdir" ]; then
-		    {
-			echo "Give directory with --debug=" 
-			print_usage_1 1
-		    } 1>&2
-		    exit 1
-		fi
-	        ;;
-	    --debug=*)
+	    --debug=*|--debug)
 	        local tmpdir
 		
-		tmpdir=${1/--debug=}
+		if [ "$1" = "--debug" ]; then
+		    shift
+		    tmpdir=$1
+		else
+		    tmpdir=${1/--debug=}
+		fi
+
 	        if [ -z "$tmpdir" ]; then
 		    echo "No directory given to --debug" 1>&2
 		    exit 1
@@ -437,17 +452,52 @@ function parse_arguments
 		DEBUG="${tmpdir}"
 		REPORT_LEVEL=verbose
 		;;
-	    --dummy-rpm=*)
-		DUMMY_RPM=${1/--dummy-rpm=}
+	    --dummy-rpm=*|--dummy-rpm)
+	        if [ "$1" = "--dummy-rpm" ]; then
+		    shift
+		    DUMMY_RPM=$1
+		else
+		    DUMMY_RPM=${1/--dummy-rpm=}
+		fi
+	        
+	        if [ -z "$DUMMY_RPM" ]; then
+		    echo "No dummy rpm given to --dummy-rpm" 1>&2
+		    exit 1
+		fi
+		
 		# TODO: Check value with rpm -qip
+		# TODO: http is acceptable?
 		if ! [ -f $DUMMY_RPM ]; then
 		    echo "No such file: $DUMMY_RPM" 1>&2
 		    exit 1
 		fi
 		;;
-	    --expected-rpms=*)
-		EXPECTED_RPMS=${1/--expected-rpms=}
-		# TODO: Check value
+		
+	    --expected-the-number-of-rpms=*|-N=*|--expected-the-number-of-rpms|-N)
+	        local original_opt=$1
+
+	        if [ "$1" = "-N" ]; then
+		    shift
+		    EXPECTED_THE_NUMBER_OF_RPMS=$1
+		elif [ "$1" = "--expected-the-number-of-rpms" ]; then
+		    shift
+		    EXPECTED_THE_NUMBER_OF_RPMS=$1
+		elif [[ "$1" == -N=* ]]; then
+		    EXPECTED_THE_NUMBER_OF_RPMS=${1/-N=}
+		else
+		    EXPECTED_THE_NUMBER_OF_RPMS=${1/--expected-the-number-of-rpms=}
+		fi
+
+		if [ -z $EXPECTED_THE_NUMBER_OF_RPMS ]; then
+		    echo "No number given: $original_opt" 1>&2
+		    exit 1
+		fi
+		
+		if [[ $EXPECTED_THE_NUMBER_OF_RPMS != +([0-9]) ]]; then
+		    echo "No number given: $original_opt" 1>&2
+		    exit 1
+		fi
+		
 		;;
 	    --ignore-error)
 	        IGNORE_ERROR=yes
@@ -455,8 +505,19 @@ function parse_arguments
 	    --quiet)
 	        REPORT_LEVEL=quiet
 	        ;;
-            --report-level=*)
-	         REPORT_LEVEL=${1/--report-level=}
+            --report-level=*|--report-level)
+	         if [ "$1" = "--report-level" ]; then
+		     shift
+		     REPORT_LEVEL=$1
+		 else
+	             REPORT_LEVEL=${1/--report-level=}
+		 fi
+
+		 if [ -z "$REPORT_LEVEL" ]; then
+		     echo "No report level given to --report-level" 1>&2
+		     exit 1
+		 fi
+
 		 if ! member_p $REPORT_LEVEL quiet line verbose; then
 		     {
 			 echo "No such report level: $REPORT_LEVEL"
@@ -529,7 +590,7 @@ function main
     done
 
     for c in $CHECKERS; do
-	check $c $DBPATH "$surgery" ${DUMMY_RPM:--} "${EXPECTED_RPMS}"
+	check $c $DBPATH "$surgery" ${DUMMY_RPM:--} "${EXPECTED_THE_NUMBER_OF_RPMS}"
 	case $? in
 	    0)
 		:
@@ -630,11 +691,11 @@ function __rpm_qa__check
     return 0
 }
 
-function __expected_rpms__check
+function __expected_the_number_of_rpms__check
 {
     local workspace=$1
     local tmpdir=$2
-    local expected_rpms=$3
+    local expected_the_number_of_rpms=$3
     local lines
 
     if ! [ -r "$tmpdir/${workspace}/rpm_qa_stdout" ]; then
@@ -643,7 +704,7 @@ function __expected_rpms__check
     
     lines=$(wc -l < "$tmpdir/${workspace}/rpm_qa_stdout")
     echo "$lines" > "$tmpdir/${workspace}/lines"
-    if [ "$lines" -gt "${expected_rpms}" ]; then
+    if [ "$lines" -gt "${expected_the_number_of_rpms}" ]; then
 	return 0
     else
 	return 2
@@ -776,11 +837,11 @@ function rpm_qa_on_original__check
     return $?
 }
 
-expected_rpms_on_original__desc="Checking the lines of output of 'rpm -qa' on the original rpmdb"
-expected_rpms_on_original__workspace="@qa_on_original"
-function expected_rpms_on_original__check
+expected_the_number_of_rpms_on_original__desc="Checking the lines of output of 'rpm -qa' on the original rpmdb"
+expected_the_number_of_rpms_on_original__workspace="@qa_on_original"
+function expected_the_number_of_rpms_on_original__check
 {
-    __expected_rpms__check $(workspace_for "$1") $3 $5
+    __expected_the_number_of_rpms__check $(workspace_for "$1") $3 $5
     return $?
 }
 
