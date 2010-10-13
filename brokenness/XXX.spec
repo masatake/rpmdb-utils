@@ -11,6 +11,8 @@ BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Buildarch:      noarch
 
 %define __os_install_post true
+%define _binary_payload w9.gzdio
+%define _binary_filedigest_algorithm 1
 
 %description
 Dummy rpm used in Dummy rpm used in rpmdb-brokenness.sh
