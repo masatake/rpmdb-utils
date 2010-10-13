@@ -85,7 +85,8 @@ function print_usage
     echo "	   [[--report-level=line|quiet|verbose]|--verbose|--quiet] \\"
     echo "	   [--dbpath=DBPATH] [-N=#|--expected-the-number-of-rpms=#] [--dummy-rpm=RPM] \\"
     echo "	   [--dont-check=C1,C2,@W1,@W2,...]"
-    echo "	$0 [--decode=...]"
+    echo "	$0 --decode=..."
+    echo "      $0 --version"
     echo ""
     echo "Default value:"
     echo "	DBPATH: $DPBATH"
@@ -602,6 +603,10 @@ function parse_arguments
 	    --verbose)
 	         REPORT_LEVEL=verbose
 	         ;;
+	    --version)
+	         echo $VERSION
+		 exit 0
+		 ;;
 	    --*)
 	         {
 		     echo "No such option: $1" 
