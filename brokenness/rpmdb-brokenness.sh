@@ -786,17 +786,22 @@ function __verify_installation__check
     local dummy_pkg=$3
     local name
 
-
+    
     if [ "$dummy_pkg" = "-" ]; then
 	return 3
-    else
-	name=$(rpm -qp --queryformat "%{name}\n" "$dummy_pkg")
     fi
 
     if ! [  -d $db ];then
 	# programming error
 	return 1
     fi
+    
+    name=$(rpm -qp --queryformat "%{name}\n" "$dummy_pkg")
+    if [ -z "${name}" ]; then
+	# ??? 2
+	return 1
+    fi
+
 
     if (rpm -qa --dbpath $db 2>/dev/null | tee $tmpdir/${workspace}/rpm_qa_stdout | grep "^${name}") > /dev/null 2>&1; then
 	return 0
