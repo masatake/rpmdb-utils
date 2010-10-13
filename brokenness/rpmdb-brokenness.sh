@@ -35,6 +35,7 @@ REPORT_LEVEL=${REPORT_LEVEL:-line}
 IGNORE_ERROR=
 
 
+DISABLED_CHECKERS=""
 CHECKERS="
           has_pidof
           rpm_running
@@ -82,7 +83,7 @@ function print_usage
     echo "	$0 [--debug=TMPDIR] [--ignore-error] \\"
     echo "	   [[--report-level=line|quiet|verbose]|--verbose|--quiet] \\"
     echo "	   [--dbpath=DBPATH] [-N=#|--expected-the-number-of-rpms=#] [--dummy-rpm=RPM] \\"
-    echo "	   [--dont-check=A,B..]"
+    echo "	   [--dont-check=C1,C2,@W1,@W2,...]"
     echo "	$0 [--decode=...]"
     echo ""
     echo "Default value:"
@@ -201,6 +202,13 @@ function workspace_for
 
     echo "${!workspace_ref}"
     return 0
+}
+
+function all_workspaces
+{
+   for c in $CHECKERS ; do
+       workspace_for $c
+   done | uniq | sort
 }
 
 function describe
@@ -489,20 +497,55 @@ function parse_arguments
 		else
 		    DUMMY_RPM=${1/--dummy-rpm=}
 		fi
-	        
+
 	        if [ -z "$DUMMY_RPM" ]; then
 		    echo "No dummy rpm given to --dummy-rpm" 1>&2
 		    exit 1
 		fi
+
+		case $DUMMY_RPM in
+		    http://*|file:///*|ftp://*)
+			;;
+		    *)
+			if ! [ -f "$DUMMY_RPM" ]; then
+			    echo "No such file: $DUMMY_RPM" 1>&2
+			    exit 1
+			fi
+			;;
+		esac
+		;;
+	     --dont-check=*|--dont-check)
+	        if [ "$1" = "--dont-check" ]; then
+		    shift
+	            DISABLED_CHECKERS=$1
+		else
+		    DISABLED_CHECKERS=${1/--dont-check=}
+		fi
 		
-		# TODO: Check value with rpm -qip
-		# TODO: http is acceptable?
-		if ! [ -f $DUMMY_RPM ]; then
-		    echo "No such file: $DUMMY_RPM" 1>&2
+		if [ -z "${DISABLED_CHECKERS}" ]; then
+		    echo "No checkers given to --dont-check" 1>&2
 		    exit 1
 		fi
-		;;
-		
+
+		DISABLED_CHECKERS=$(echo "${DISABLED_CHECKERS}" | tr "," " ")
+		local all_workspaces=$(all_workspaces)
+
+		for c in $DISABLED_CHECKERS; do
+		    if [ ${c:0:1} = "@" ]; then
+			if ! member_p $c $all_workspaces; then
+			    echo "Unknown workspace: $c" 1>&2
+			    exit 1
+			fi
+			dprintf "%s is disabled\n" $c
+		    else
+			if ! member_p $c $CHECKERS; then
+			    echo "Unknown checker: $c" 1>&2
+			    exit 1
+			fi
+			dprintf "%s is disabled\n" $c
+		    fi
+		done
+                ;;
 	    --expected-the-number-of-rpms=*|-N=*|--expected-the-number-of-rpms|-N)
 	        local original_opt=$1
 
@@ -523,7 +566,7 @@ function parse_arguments
 		    exit 1
 		fi
 		
-		if [[ $EXPECTED_THE_NUMBER_OF_RPMS != +([0-9]) ]]; then
+		if [[ $EXPECTED_THE_NUMBER_OF_RPMS != +[0-9] ]]; then
 		    echo "No number given: $original_opt" 1>&2
 		    exit 1
 		fi
@@ -620,26 +663,28 @@ function main
     done
 
     for c in $CHECKERS; do
-	check $c $DBPATH "$surgery" ${DUMMY_RPM:--} "${EXPECTED_THE_NUMBER_OF_RPMS}"
-	case $? in
-	    0)
-		:
-		;;
-	    1)
-		found_error=$c
-		;;
-	    2)
-		if [ -z "$found_corruption" ]; then
-		    found_corruption=$c
+	local w=$(workspace_for $c)
+	if ! ( member_p $w $DISABLED_CHECKERS || member_p $c $DISABLED_CHECKERS ); then
+	    check $c $DBPATH "$surgery" ${DUMMY_RPM:--} "${EXPECTED_THE_NUMBER_OF_RPMS}"
+	    case $? in
+		0)
+		    :
+		    ;;
+		1)
+		    found_error=$c
+		    ;;
+		2)
+		    if [ -z "$found_corruption" ]; then
+			found_corruption=$c
+		    fi
+		    ;;
+	    esac
+	    
+	    if [ -n "$found_error" ]; then
+		if [ -z "$IGNORE_ERROR" ]; then
+		    break
 		fi
-		;;
-	esac
-	
-	if [ -n "$found_error" ]; then
-	    if [ -z "$IGNORE_ERROR" ]; then
-		break
 	    fi
-
 	fi
     done
 

@@ -6,13 +6,14 @@ Summary:	Dummy rpm used in rpmdb-brokenness.sh
 
 Group:          Development/Tools
 License:	BSD
-Source0:	XXX.sh
+Source0:	XXX
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Buildarch:      noarch
 
+%define __os_install_post true
 
 %description
-Dummy rpm used in XXX.sh
+Dummy rpm used in Dummy rpm used in rpmdb-brokenness.sh
 
 %prep
 %setup -c -T
@@ -23,7 +24,7 @@ cp %{SOURCE0} .
 
 
 %install
-install -D -m 755 XXX.sh $RPM_BUILD_ROOT%{_bindir}/XXX.sh
+install -D -m 755 XXX $RPM_BUILD_ROOT%{_sysconfdir}/XXX
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -31,7 +32,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-,root,root,-)
-%{_bindir}/XXX.sh
+%{_sysconfdir}/XXX
 
 %changelog
 * Sun Jul 19 2009 Masatake YAMATO <yamato@redhat.com>
