@@ -8,3 +8,10 @@ XXX-0-0.noarch.rpm: XXX.spec XXX
 clean:
 	/bin/rm -rf build
 	rm -f XXX-0-0.noarch.rpm
+
+DISTS=XXX.spec XXX rpmdb-brokenness.sh Makefile
+dist: 
+	v="`bash ./rpmdb-brokenness.sh --version`";			\
+	mkdir -p rpmdb-brokenness-$$v;					\
+	cp $(DISTS) rpmdb-brokenness-$$v;				\
+	tar cvfj rpmdb-brokenness-$$v.tar.bz2 rpmdb-brokenness-$$v;
