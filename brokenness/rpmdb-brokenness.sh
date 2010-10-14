@@ -88,7 +88,7 @@ function print_usage
     echo "	   [--dbpath=DBPATH] [-N=#|--expected-the-number-of-rpms=#] [--dummy-rpm=RPM] \\"
     echo "	   [--dont-check=C1,C2,@W1,@W2,...]"
     echo "	$0 --decode=..."
-    echo "      $0 --version"
+    echo "	$0 --version"
     echo ""
     echo "Default value:"
     echo "	DBPATH: $DPBATH"
@@ -878,6 +878,21 @@ function __rebuilddb__check
     fi
 }
 
+function __external_rpmdb_accessor__check
+{
+    local db=$1
+    local program=$2
+
+    if [ "$db" = /var/lib/rpm ]; then
+	return 3
+    fi
+
+    if pidof "${program}" > /dev/null 2>&1; then
+	return 1
+    fi
+    return 0
+}
+
 #
 #-----------------------------------------------------------------------
 #
@@ -898,30 +913,27 @@ rpm_running__desc="Checking whether another rpm process is running or not"
 rpm_running__workspace="@external_rpmdb_accessor"
 function rpm_running__check
 {
-    if pidof rpm > /dev/null 2>&1; then
-	return 1
-    fi
-    return 0
+    local db=$2
+    __external_rpmdb_accessor__check $db rpm
+    return $?
 }
 
 up2date_running__desc="Checking whether another up2date process is running or not"
 up2date_running__workspace="@external_rpmdb_accessor"
 function up2date_running__check
 {
-    if pidof up2date > /dev/null 2>&1; then
-	return 1
-    fi
-    return 0
+    local db=$2
+    __external_rpmdb_accessor__check $db up2date
+    return $?
 }
 
 yum_running__desc="Checking whether another yum process is running or not"
 yum_running__workspace="@external_rpmdb_accessor"
 function yum_running__check
 {
-    if pidof yum > /dev/null 2>&1; then
-	return 1
-    fi
-    return 0
+    local db=$2
+    __external_rpmdb_accessor__check $db yum
+    return $?
 }
 
 
