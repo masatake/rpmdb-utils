@@ -40,6 +40,8 @@ DISABLED_CHECKERS=""
 CHECKERS="
           has_pidof
           rpm_running
+          up2date_running
+          yum_running
           fcntl_lock_target_db000
           fcntl_lock_target_transactions
           region_file_1
@@ -893,6 +895,7 @@ function has_pidof__check
 }
 
 rpm_running__desc="Checking whether another rpm process is running or not"
+rpm_running__workspace="@external_rpmdb_accessor"
 function rpm_running__check
 {
     if pidof rpm > /dev/null 2>&1; then
@@ -900,6 +903,29 @@ function rpm_running__check
     fi
     return 0
 }
+
+up2date_running__desc="Checking whether another up2date process is running or not"
+up2date_running__workspace="@external_rpmdb_accessor"
+function up2date_running__check
+{
+    if pidof up2date > /dev/null 2>&1; then
+	return 1
+    fi
+    return 0
+}
+
+yum_running__desc="Checking whether another yum process is running or not"
+yum_running__workspace="@external_rpmdb_accessor"
+function yum_running__check
+{
+    if pidof yum > /dev/null 2>&1; then
+	return 1
+    fi
+    return 0
+}
+
+
+
 
 fcntl_lock_target_db000__desc=$(__file_existence__desc __db.000)
 function fcntl_lock_target_db000__check
