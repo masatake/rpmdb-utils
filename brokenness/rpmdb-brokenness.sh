@@ -449,6 +449,11 @@ function parse_arguments
 		    echo "No such directory: $DBPATH" 1>&2
 		    exit 1
 		fi
+
+		if ! [ "${DBPATH:0:1}" = "/" ]; then
+		    echo "Don't use relative path for dbpath" 1>&2
+		    exit 1
+		fi
 		;;
 	    --decode=*|--decode)
 	        local decode_p
