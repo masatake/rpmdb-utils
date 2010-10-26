@@ -42,6 +42,7 @@ CHECKERS="
           rpm_running
           up2date_running
           yum_running
+          fcntl_lock_target_rpmlock
           fcntl_lock_target_db000
           fcntl_lock_target_transactions
           region_file_1
@@ -943,6 +944,15 @@ function yum_running__check
 
 
 
+
+fcntl_lock_target_rpmlock__desc=$(__file_existence__desc .rpm.lock)
+function fcntl_lock_target_rpmlock__check
+{
+    local db=$2
+
+    __file_existence__check "$db/.rpm.lock"
+    return $?
+}
 
 fcntl_lock_target_db000__desc=$(__file_existence__desc __db.000)
 function fcntl_lock_target_db000__check
