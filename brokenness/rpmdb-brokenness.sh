@@ -62,10 +62,10 @@ CHECKERS="
           install_on_copied_other_than_db00X
           verify_installation_on_copied_other_than_db00X
           rebuilddb_on_copied_other_than_db00X
-          rpm_qa_on_rebuilt_the_copied_from_the_original_than_db00X
-          expected_the_number_of_rpms_on_rebuilt_the_copied_from_the_original_than_db00X
-          install_on_rebuilt_the_copied_from_the_original_than_db00X
-          verify_installation_on_rebuilt_the_copied_from_the_original_than_db00X
+          rpm_qa_on_rebuilt_the_copied_from_the_original_other_than_db00X
+          expected_the_number_of_rpms_on_rebuilt_the_copied_from_the_original_other_than_db00X
+          install_on_rebuilt_the_copied_from_the_original_other_than_db00X
+          verify_installation_on_rebuilt_the_copied_from_the_original_other_than_db00X
           packages
           rpm_qa_on_copied_only_Packages
           expected_the_number_of_rpms_on_copied_only_Packages
@@ -1123,26 +1123,26 @@ falias verify_installation_on_copied_other_than_db00X__check verify_installation
 
 
 
-rebuilddb_on_copied_other_than_db00X__desc="Checking exit status of 'rpm --rebuilddb' on the rpmdb copied from the original than __db00X files"
+rebuilddb_on_copied_other_than_db00X__desc="Checking exit status of 'rpm --rebuilddb' on the rpmdb copied from the original other than __db00X files"
 rebuilddb_on_copied_other_than_db00X__workspace="@rebuilddb_on_copied_other_than_db00X"
 falias rebuilddb_on_copied_other_than_db00X__setup rpm_qa_on_copied_other_than_db00X__setup
 falias rebuilddb_on_copied_other_than_db00X__check rebuilddb_on_copied__check
 
-rpm_qa_on_rebuilt_the_copied_from_the_original_than_db00X__desc="Checking exit status of 'rpm -qa' on the rebuilt rpmdb"
-rpm_qa_on_rebuilt_the_copied_from_the_original_than_db00X__workspace="@rebuilddb_on_copied_other_than_db00X"
-falias rpm_qa_on_rebuilt_the_copied_from_the_original_than_db00X__check rpm_qa_on_rebuilt__check
+rpm_qa_on_rebuilt_the_copied_from_the_original_other_than_db00X__desc="Checking exit status of 'rpm -qa' on the rebuilt rpmdb"
+rpm_qa_on_rebuilt_the_copied_from_the_original_other_than_db00X__workspace="@rebuilddb_on_copied_other_than_db00X"
+falias rpm_qa_on_rebuilt_the_copied_from_the_original_other_than_db00X__check rpm_qa_on_rebuilt__check
 
-expected_the_number_of_rpms_on_rebuilt_the_copied_from_the_original_than_db00X__desc="Checking the lines of output of 'rpm -qa' on the rpmdb rebuilt from copied from the original than __db00X files"
-expected_the_number_of_rpms_on_rebuilt_the_copied_from_the_original_than_db00X__workspace="@rebuilddb_on_copied_other_than_db00X"
-falias expected_the_number_of_rpms_on_rebuilt_the_copied_from_the_original_than_db00X__check expected_the_number_of_rpms_on_original__check
+expected_the_number_of_rpms_on_rebuilt_the_copied_from_the_original_other_than_db00X__desc="Checking the lines of output of 'rpm -qa' on the rpmdb rebuilt from copied from the original other than __db00X files"
+expected_the_number_of_rpms_on_rebuilt_the_copied_from_the_original_other_than_db00X__workspace="@rebuilddb_on_copied_other_than_db00X"
+falias expected_the_number_of_rpms_on_rebuilt_the_copied_from_the_original_other_than_db00X__check expected_the_number_of_rpms_on_original__check
 
-install_on_rebuilt_the_copied_from_the_original_than_db00X__desc="Checking the exit status of 'rpm -i --justdb' on the rpmdb rebuilt from copied from the original than __db00X files"
-install_on_rebuilt_the_copied_from_the_original_than_db00X__workspace="@rebuilddb_on_copied_other_than_db00X"
-falias install_on_rebuilt_the_copied_from_the_original_than_db00X__check install_on_copied__check
+install_on_rebuilt_the_copied_from_the_original_other_than_db00X__desc="Checking the exit status of 'rpm -i --justdb' on the rpmdb rebuilt from copied from the original other than __db00X files"
+install_on_rebuilt_the_copied_from_the_original_other_than_db00X__workspace="@rebuilddb_on_copied_other_than_db00X"
+falias install_on_rebuilt_the_copied_from_the_original_other_than_db00X__check install_on_copied__check
 
-verify_installation_on_rebuilt_the_copied_from_the_original_than_db00X__desc="Checking the dummy package is really installed to the rpmdb rebuilt from the original than __db00X files"
-verify_installation_on_rebuilt_the_copied_from_the_original_than_db00X__workspace="@rebuilddb_on_copied_other_than_db00X"
-falias verify_installation_on_rebuilt_the_copied_from_the_original_than_db00X__check verify_installation_on_copied__check
+verify_installation_on_rebuilt_the_copied_from_the_original_other_than_db00X__desc="Checking the dummy package is really installed to the rpmdb rebuilt from the original other than __db00X files"
+verify_installation_on_rebuilt_the_copied_from_the_original_other_than_db00X__workspace="@rebuilddb_on_copied_other_than_db00X"
+falias verify_installation_on_rebuilt_the_copied_from_the_original_other_than_db00X__check verify_installation_on_copied__check
 
 
 
