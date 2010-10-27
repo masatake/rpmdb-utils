@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION=0.1.1
+VERSION=0.1.2
 # -*- page-delimiter: "^#"; -*-
 #
 # Copyright (C) 2010 Red Hat, Inc.
