@@ -1100,7 +1100,7 @@ function rpm_qa_on_copied_other_than_db00X__setup
     local tmpdir=$3
     
     if __copy_db__setup $2 "${tmpdir}"/${workspace}/db X; then
-	rm -f "${tmpdir}"/${workspace}/db/__db00*
+	rm -f "${tmpdir}"/${workspace}/db/__db.00*
 	return 0
     fi
     return $?
