@@ -244,6 +244,53 @@ function falias
     }"
 }
 
+function alive_p
+{
+    command kill -s 0 $1 >/dev/null 2>&1 
+    return $?
+}
+
+#
+# with_timeout TIMEOUT SIGNAL CMD...
+#
+# return 0 if CMD exits in TIMEOUT.
+# return 1 if CMD doesn't stop in TIMEOUT.
+#
+# e.g. 
+# with_timeout 10 KILL rpm -qa
+#
+function with_timeout
+{
+    local timeout=$1
+    local sig=$2
+    shift 2
+    
+    
+    local target_pid
+    local count=0
+
+    "$@" &
+    target_pid=$!
+    
+    while [[ "$count" -lt "$timeout" ]]; do
+	if ! alive_p $target_pid; then
+	    wait $target_pid
+	    return 0
+	fi
+
+	sleep 1
+	count=$(( $count + 1 ))
+
+	if ! alive_p $target_pid; then
+	    wait $target_pid
+	    return 0
+	fi
+    done
+ 
+    command kill -s $sig $target_pid >/dev/null 2>&1    
+    return 1
+}
+
 #
 #-----------------------------------------------------------------------
 #
