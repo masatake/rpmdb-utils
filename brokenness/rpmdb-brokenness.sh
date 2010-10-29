@@ -152,6 +152,15 @@ function member_p
     return 1
 }
 
+function number_p
+{
+    local v=$1
+    shift
+
+    [[ $v =~ ^[0-9]+$ ]]
+    return $?
+}
+
 function index_of
 {
     local found
@@ -576,7 +585,7 @@ function parse_arguments
 		    exit 1
 		fi
 		
-		if [[ $EXPECTED_THE_NUMBER_OF_RPMS != +[0-9] ]]; then
+		if ! number_p "$EXPECTED_THE_NUMBER_OF_RPMS"; then
 		    echo "No number given: $original_opt" 1>&2
 		    exit 1
 		fi
