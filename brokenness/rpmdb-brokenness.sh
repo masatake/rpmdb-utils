@@ -139,7 +139,7 @@ function line_p
     return $?
 }
 
-function member_p
+function member
 {
     local elt=$1
     shift
@@ -551,13 +551,13 @@ function parse_arguments
 
 		for c in $DISABLED_CHECKERS; do
 		    if [ ${c:0:1} = "@" ]; then
-			if ! member_p $c $all_workspaces; then
+			if ! member $c $all_workspaces; then
 			    echo "Unknown workspace: $c" 1>&2
 			    exit 1
 			fi
 			dprintf "%s is disabled\n" $c
 		    else
-			if ! member_p $c $CHECKERS; then
+			if ! member $c $CHECKERS; then
 			    echo "Unknown checker: $c" 1>&2
 			    exit 1
 			fi
@@ -610,7 +610,7 @@ function parse_arguments
 		     exit 1
 		 fi
 
-		 if ! member_p $REPORT_LEVEL quiet line verbose; then
+		 if ! member $REPORT_LEVEL quiet line verbose; then
 		     {
 			 echo "No such report level: $REPORT_LEVEL"
 			 print_usage_1 1 
@@ -687,7 +687,7 @@ function main
 
     for c in $CHECKERS; do
 	local w=$(workspace_for $c)
-	if ! ( member_p $w $DISABLED_CHECKERS || member_p $c $DISABLED_CHECKERS ); then
+	if ! ( member $w $DISABLED_CHECKERS || member $c $DISABLED_CHECKERS ); then
 	    check $c $DBPATH "$surgery" ${DUMMY_RPM:--} "${EXPECTED_THE_NUMBER_OF_RPMS}"
 	    case $? in
 		0)
