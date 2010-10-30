@@ -7,6 +7,7 @@
 VERSION=0.1.3
 #
 # Copyright (C) 2010 Red Hat, Inc.
+# Copyright (C) 2010 Masatake YAMATO
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
