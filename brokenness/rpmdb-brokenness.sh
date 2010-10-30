@@ -780,18 +780,22 @@ function main
 			found_corruption=$c
 		    fi
 		    if [ $r = 4 ]; then
-			break
+			DISABLED_CHECKERS=$CHECKERS
 		    fi
 		    ;;
 	    esac
-	    
-	    
+
 	    if [ -n "$found_error" ]; then
 		if [ -z "$IGNORE_ERROR" ]; then
 		    break
 		fi
 	    fi
 	fi
+	case $REPORT_LEVEL in
+	    line)
+		report_$REPORT_LEVEL $c $(eval 'echo $'${c}__result)
+		;;
+	esac
     done
 
     case $REPORT_LEVEL in
@@ -799,9 +803,6 @@ function main
 	    :
 	    ;;
 	line)
-	    for c in $CHECKERS; do
-		report_$REPORT_LEVEL $c $(eval 'echo $'${c}__result)
-	    done
 	    if [ -n "$found_error" ]; then
 		echo -n ": $found_error<error>"
 	    fi
