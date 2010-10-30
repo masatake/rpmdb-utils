@@ -4,7 +4,7 @@
 # the checker. See notify_and_cleanup() in bash-4.1/jobs.c. -i option
 # assigns 1 to interactive_shell. 
 
-VERSION=0.1.2
+VERSION=0.1.3
 #
 # Copyright (C) 2010 Red Hat, Inc.
 #
