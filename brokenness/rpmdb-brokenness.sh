@@ -390,10 +390,13 @@ function decode_1
 #
 #-----------------------------------------------------------------------
 #
-# Check
+# Check --- check function calls a checker.
 #
 # ----------------------------------------------------------------------
-# argument:
+# 
+# * A protocol between check() and a checker.
+# 
+# + arguments passed to checker:
 # 1: CHECKER
 # 2: DB
 # 3: TMPDIR
@@ -401,18 +404,24 @@ function decode_1
 # 5: EXPECTED_THE_NUMBER_OF_RPMS
 # 6: TIMEOUT
 # 
-# ----------------------------------------------------------------------
-# return value:
+# + value returned from the checker to check():
 # 0: found no corruption 
 # 1: error occurred
 # 2: found corruption
 # 3: not checked
 # 4: critical error occurred
 #
-# ----------------------------------------------------------------------
+# + temporary directories prepared to a checker:
 # tmpdir:
-# TMPDIR/CHECKER
-# TMPDIR/WORKSPACE
+# $TMPDIR/$CHECKER
+# $TMPDIR/$WORKSPACE
+#
+# + name convention
+# $CHECKER__desc --- Human readable description for $CHECKER.
+# $CHECKER__setup --- optional.
+# $CHECKER__check
+# $CHECKER__teardown --- optional.
+# $CHECKER__workspace --- Name of workspace used in $CHECKER. optional.
 #
 function check
 {
