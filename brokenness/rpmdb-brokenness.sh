@@ -1,5 +1,9 @@
-#!/bin/bash
-# -*- page-delimiter: "^#"; -*-
+#!/bin/bash -i
+# -i option is needed to suppress notification message when a process
+# asynchronously exected from timeout_rpm_qa checker is killed by
+# the checker. See notify_and_cleanup() in bash-4.1/jobs.c. -i option
+# assigns 1 to interactive_shell. 
+
 VERSION=0.1.2
 #
 # Copyright (C) 2010 Red Hat, Inc.
@@ -34,7 +38,7 @@ DUMMY_RPM=
 DEBUG=
 REPORT_LEVEL=${REPORT_LEVEL:-line}
 IGNORE_ERROR=
-
+TIMEOUT=60
 
 DISABLED_CHECKERS=""
 CHECKERS="
@@ -48,6 +52,7 @@ CHECKERS="
           region_file_1
           region_file_2
           region_file_3
+          timeout_rpm_qa
           rpm_qa_on_original
           expected_the_number_of_rpms_on_original
           install_on_copied
@@ -87,7 +92,7 @@ function print_usage
     echo "	$0 [--debug=TMPDIR] [--ignore-error] \\"
     echo "	   [[--report-level=line|quiet|verbose]|--verbose|--quiet] \\"
     echo "	   [--dbpath=DBPATH] [-N=#|--expected-the-number-of-rpms=#] [--dummy-rpm=RPM] \\"
-    echo "	   [--dont-check=C1,C2,@W1,@W2,...]"
+    echo "	   [--timeout=TIMEOUT(sec)] [--dont-check=C1,C2,@W1,@W2,...]"
     echo "	$0 --decode=..."
     echo "	$0 --version"
     echo ""
@@ -95,6 +100,7 @@ function print_usage
     echo "	DBPATH: $DPBATH"
     echo "	EXPECTED_THE_NUMBER_OF_RPMS: $EXPECTED_THE_NUMBER_OF_RPMS"
     echo "	REPORT_LEVEL: $REPORT_LEVEL"
+    echo "	TIMEOUT: $TIMEOUT"
     echo ""
     echo "Exit status:"
     echo "	0: No corruption detected in any checkers"
@@ -264,17 +270,17 @@ function with_timeout
     local timeout=$1
     local sig=$2
     shift 2
-    
-    
+
     local target_pid
     local count=0
 
+    
     "$@" &
     target_pid=$!
     
     while [[ "$count" -lt "$timeout" ]]; do
 	if ! alive_p $target_pid; then
-	    wait $target_pid
+	    # wait $target_pid
 	    return 0
 	fi
 
@@ -282,7 +288,7 @@ function with_timeout
 	count=$(( $count + 1 ))
 
 	if ! alive_p $target_pid; then
-	    wait $target_pid
+	    # wait $target_pid
 	    return 0
 	fi
     done
@@ -393,6 +399,7 @@ function decode_1
 # 3: TMPDIR
 # 4: DUMMY PKG or -
 # 5: EXPECTED_THE_NUMBER_OF_RPMS
+# 6: TIMEOUT
 # 
 # ----------------------------------------------------------------------
 # return value:
@@ -400,6 +407,7 @@ function decode_1
 # 1: error occurred
 # 2: found corruption
 # 3: not checked
+# 4: critical error occurred
 #
 # ----------------------------------------------------------------------
 # tmpdir:
@@ -454,6 +462,10 @@ function check
 	    eval ${c}__result=_
 	    dprintf "not checked\n"
 	    ;;
+	4)
+	    eval ${c}__result=!
+	    dprintf "corrupted\n" 
+	    ;;
     esac
 
     
@@ -479,6 +491,9 @@ function check
 
 function parse_arguments
 {
+    local original_opt
+
+
     for c in $CHECKERS; do
 	local d="$(eval echo \$${c}__desc)"
 	test -z "$d" && eval ${c}__desc="\"NO DOCUMENT\""
@@ -613,7 +628,7 @@ function parse_arguments
 		done
                 ;;
 	    --expected-the-number-of-rpms=*|-N=*|--expected-the-number-of-rpms|-N)
-	        local original_opt=$1
+	        original_opt=$1
 
 	        if [ "$1" = "-N" ]; then
 		    shift
@@ -663,6 +678,21 @@ function parse_arguments
 			 print_usage_1 1 
 		     } 1>&2
 		 fi
+		 ;;
+            --timeout=*|--timeout)
+                 original_opt=$1
+
+	         if [ "$1" = "--timeout" ]; then
+		     shift
+		     TIMEOUT=$1
+		 else
+		     TIMEOUT=${1/--timeout=}
+		 fi
+
+		 if ! number_p "$TIMEOUT"; then
+		    echo "No number given: $original_opt" 1>&2
+		    exit 1
+                 fi
 		 ;;
 	    --verbose)
 	         REPORT_LEVEL=verbose
@@ -734,21 +764,27 @@ function main
 
     for c in $CHECKERS; do
 	local w=$(workspace_for $c)
+	local r
 	if ! ( member $w $DISABLED_CHECKERS || member $c $DISABLED_CHECKERS ); then
-	    check $c $DBPATH "$surgery" ${DUMMY_RPM:--} "${EXPECTED_THE_NUMBER_OF_RPMS}"
-	    case $? in
+	    check $c $DBPATH "$surgery" ${DUMMY_RPM:--} "${EXPECTED_THE_NUMBER_OF_RPMS}" "${TIMEOUT}"
+	    r=$?
+	    case $r in
 		0)
 		    :
 		    ;;
 		1)
 		    found_error=$c
 		    ;;
-		2)
+		2|4)
 		    if [ -z "$found_corruption" ]; then
 			found_corruption=$c
 		    fi
+		    if [ $r = 4 ]; then
+			break
+		    fi
 		    ;;
 	    esac
+	    
 	    
 	    if [ -n "$found_error" ]; then
 		if [ -z "$IGNORE_ERROR" ]; then
@@ -1048,6 +1084,18 @@ function region_file_3__check
     return $?
 }
 
+timeout_rpm_qa__desc="Checking rpm -qa exits in given time limit"
+function timeout_rpm_qa__check
+{
+    local timeout=$6
+
+    if ! with_timeout $timeout KILL rpm -qa > /dev/null 2>&1; then
+	return 4
+    else
+	return 0
+    fi
+}
+
 rpm_qa_on_original__desc="Checking exit status of 'rpm -qa' on the original rpmdb"
 rpm_qa_on_original__workspace="@qa_on_original"
 function rpm_qa_on_original__check
@@ -1243,3 +1291,7 @@ falias verify_installation_on_copied_only_Packages__check verify_installation_on
 #
 #-----------------------------------------------------------------------
 main "$@"
+
+# Local Variables: 
+# page-delimiter: "^#"
+# End: 
