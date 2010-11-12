@@ -1,3 +1,9 @@
+2010-11-12  Masatake YAMATO  <yamato@redhat.com>
+
+	* rpmdb-brokenness.sh (associated): New function.
+	(#!/bin/bash): Don't use -i option.
+	(with_timeout): Use `assassinate' to send a signal for killing.
+
 2010-03-09  Masatake YAMATO  <yamato@redhat.com>
 
 	* rpmdb-brokenness.sh (check_rebuilddb_on_copied): Added new function.

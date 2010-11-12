@@ -1,8 +1,4 @@
-#!/bin/bash -i
-# -i option is needed to suppress notification message when a process
-# asynchronously exected from timeout_rpm_qa checker is killed by
-# the checker. See notify_and_cleanup() in bash-4.1/jobs.c. -i option
-# assigns 1 to interactive_shell. 
+#!/bin/bash
 
 VERSION=0.1.3
 #
@@ -257,6 +253,26 @@ function alive_p
     return $?
 }
 
+function assassinate
+{
+    local target_pid=$1
+    local sig=$2
+    
+    # The target pid is a child of this bash process.
+    # If the child is killed, bash reports it to stderr.
+    # To suppress the report message, stderr for this bash
+    # process must be closed or connected to /dev/null.
+    #
+    # close stderr
+    exec 3>&2- 2>/dev/null
+    command kill -s $sig $target_pid >/dev/null 2>&1    
+    while alive_p $target_pid; do
+	sleep 1
+    done
+    # open stderr again
+    exec 2>&3-
+
+}
 #
 # with_timeout TIMEOUT SIGNAL CMD...
 #
@@ -265,6 +281,9 @@ function alive_p
 #
 # e.g. 
 # with_timeout 10 KILL rpm -qa
+#
+# with_timeout 10 KILL sleep 5 => 0
+# with_timeout 10 KILL sleep 5 => 1
 #
 function with_timeout
 {
@@ -294,7 +313,8 @@ function with_timeout
 	fi
     done
  
-    command kill -s $sig $target_pid >/dev/null 2>&1    
+    assassinate "$target_pid" "$sig"
+    
     return 1
 }
 
